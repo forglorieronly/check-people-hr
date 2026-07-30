@@ -1,0 +1,17 @@
+# Системни файлове
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+*~
+
+# Редактори
+.idea/
+.vscode/
+
+# Python
+__pycache__/
+*.pyc
+
+# Изтеглени от приложението файлове
+*-updated.csv

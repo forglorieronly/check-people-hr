@@ -1,0 +1,1389 @@
+<!DOCTYPE html>
+<html lang="bg">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Глориър · Проверка на кандидати</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#16202B; --ink-soft:#3A4A59; --muted:#6E8091;
+  --line:#D8DFE5; --line-soft:#E7ECF0; --paper:#E9EEF1; --card:#FFFFFF;
+  --accent:#0E7C8C; --accent-tint:#E1F1F3;
+  --ok:#1B7A50; --ok-tint:#E4F2EA;
+  --no:#A8382A; --no-tint:#F8E7E4;
+  --note:#8A6A17; --note-tint:#FBF1DA;
+  --blue:#1F5B96; --blue-tint:#E3EDF7;
+  --radius:14px;
+  --shadow:0 1px 2px rgba(22,32,43,.05), 0 12px 32px rgba(22,32,43,.08);
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{background:var(--paper);color:var(--ink);font-family:'Inter',system-ui,sans-serif;
+  font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased;min-height:100vh}
+button{font-family:inherit;cursor:pointer}
+input,select,textarea{font-family:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+.eyebrow{font-family:'JetBrains Mono',ui-monospace,monospace;font-size:11px;
+  letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+
+.shell{max-width:760px;margin:0 auto;padding:24px 20px 80px;transition:max-width .2s}
+.shell.wide{max-width:min(1720px, 97vw)}
+
+.topbar{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:22px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:12px;min-width:0}
+.logo{height:26px;width:auto;flex:none;display:block}
+.brand-rule{width:1px;height:18px;background:var(--line);flex:none}
+.brand-sub{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);
+  letter-spacing:.08em;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.topright{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.me{display:flex;align-items:center;gap:7px;background:var(--card);border:1px solid var(--line);
+  border-radius:999px;padding:4px 6px 4px 13px}
+.me label{font-size:12px;color:var(--muted);white-space:nowrap}
+.me input{width:74px;border:0;outline:0;background:transparent;font-size:12.5px;font-weight:600;
+  color:var(--ink);text-transform:uppercase;padding:4px 6px}
+.me input::placeholder{color:#A9B6C1;font-weight:400;text-transform:none}
+.lang{display:flex;border:1px solid var(--line);border-radius:999px;overflow:hidden;background:var(--card);flex:none}
+.lang button{border:0;background:transparent;padding:6px 13px;font-size:12px;font-weight:600;color:var(--muted)}
+.lang button[aria-pressed="true"]{background:var(--ink);color:#fff}
+
+.switch{position:relative;display:grid;grid-template-columns:1fr 1fr;background:#DFE6EB;
+  border-radius:999px;padding:4px;max-width:340px;margin:0 auto 34px}
+.switch-ind{position:absolute;top:4px;left:4px;width:calc(50% - 4px);height:calc(100% - 8px);
+  background:var(--card);border-radius:999px;box-shadow:0 1px 3px rgba(22,32,43,.16);
+  transition:transform .26s cubic-bezier(.4,.9,.3,1)}
+.switch[data-view="table"] .switch-ind{transform:translateX(100%)}
+.switch button{position:relative;z-index:1;border:0;background:transparent;padding:9px 10px;
+  font-size:13.5px;font-weight:600;color:var(--muted);border-radius:999px;transition:color .2s}
+.switch button[aria-selected="true"]{color:var(--ink)}
+
+.btn{border:1px solid var(--line);background:var(--card);color:var(--ink-soft);padding:8px 14px;
+  border-radius:9px;font-size:13px;font-weight:600;transition:.15s}
+.btn:hover{border-color:var(--ink);color:var(--ink)}
+.btn-solid{background:var(--ink);border-color:var(--ink);color:#fff}
+.btn-solid:hover{background:#0B1620;color:#fff}
+.btn-accent{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn-accent:hover{background:#0A616E;color:#fff}
+.btn-ghost{border-color:transparent;background:transparent;color:var(--muted)}
+.btn-ghost:hover{color:var(--ink);border-color:var(--line)}
+.btn-sm{padding:6px 11px;font-size:12.5px}
+
+.desk{text-align:center}
+.desk h1{font-family:'Onest',sans-serif;font-weight:700;font-size:clamp(28px,5.4vw,40px);
+  letter-spacing:-.03em;line-height:1.1;margin:0 0 10px}
+.desk p{color:var(--muted);font-size:14px;margin:0 auto;max-width:48ch}
+.searchwrap{position:relative;margin:30px auto 0;max-width:560px}
+.searchbox{display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--line);
+  border-radius:var(--radius);padding:7px 7px 7px 18px;box-shadow:var(--shadow);transition:border-color .15s}
+.searchbox:focus-within{border-color:var(--accent)}
+.searchbox input{flex:1;border:0;outline:0;background:transparent;font-size:17px;padding:12px 0;color:var(--ink);min-width:0}
+.searchbox input::placeholder{color:#9BAAB7}
+.check-btn{border:0;background:var(--ink);color:#fff;border-radius:10px;padding:13px 22px;
+  font-size:14px;font-weight:600;flex:none;transition:.15s}
+.check-btn:hover{background:var(--accent)}
+.suggest{position:absolute;left:0;right:0;top:calc(100% + 6px);z-index:20;background:var(--card);
+  border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);overflow:hidden;text-align:left}
+.suggest button{display:block;width:100%;text-align:left;border:0;background:transparent;padding:11px 18px;
+  font-size:14px;color:var(--ink-soft);border-bottom:1px solid var(--line-soft)}
+.suggest button:last-child{border-bottom:0}
+.suggest button:hover,.suggest button.active{background:var(--accent-tint);color:var(--ink)}
+.select-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:18px;justify-content:center}
+.col-label{font-size:13px;color:var(--muted)}
+.chips{display:flex;gap:7px;flex-wrap:wrap}
+.colchip{border:1px solid var(--line);background:var(--card);color:var(--muted);border-radius:999px;
+  padding:6px 13px;font-size:12.5px;font-weight:500;transition:.15s}
+.colchip:hover{border-color:var(--ink);color:var(--ink)}
+.colchip[aria-pressed="true"]{background:var(--accent-tint);border-color:var(--accent);color:var(--accent);font-weight:600}
+.under-search{margin-top:16px;display:flex;justify-content:center}
+
+.history{margin-top:44px}
+.history-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.hlist{list-style:none;margin:0;padding:0;border-top:1px solid var(--line-soft)}
+.hlist li{border-bottom:1px solid var(--line-soft)}
+.hlist button{width:100%;display:flex;align-items:center;gap:12px;text-align:left;border:0;
+  background:transparent;padding:12px 4px;font-size:14px;color:var(--ink-soft)}
+.hlist button:hover{color:var(--ink)}
+.hname{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chip{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;
+  padding:3px 8px;border-radius:5px;flex:none;font-weight:500}
+.chip.ok{background:var(--ok-tint);color:var(--ok)}
+.chip.no{background:var(--no-tint);color:var(--no)}
+.htime{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);flex:none}
+
+/* ---- table ---- */
+.tbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+.tsearch{flex:1;min-width:220px;border:1px solid var(--line);border-radius:10px;background:var(--card);
+  padding:10px 14px;font-size:14px;color:var(--ink);outline:0}
+.tsearch:focus{border-color:var(--accent)}
+.facet{border:1px solid var(--line);border-radius:10px;background:var(--card);padding:10px 12px;
+  font-size:13px;color:var(--ink-soft);outline:0;max-width:200px}
+.facet:focus{border-color:var(--accent)}
+.tbar-right{display:flex;gap:8px;flex-wrap:wrap;margin-left:auto}
+.tmeta{display:flex;align-items:center;gap:8px 16px;flex-wrap:wrap;margin-bottom:12px}
+.tmeta .chips{gap:6px}
+.tmeta .colchip{padding:4px 10px;font-size:11.5px}
+
+.tablewrap{background:var(--card);border:1px solid var(--line);border-radius:12px;
+  overflow-y:auto;overflow-x:auto;max-height:70vh;box-shadow:var(--shadow)}
+table{border-collapse:separate;border-spacing:0;width:100%;table-layout:fixed;font-size:13px}
+thead th{position:sticky;top:0;z-index:2;background:#F5F8F9;text-align:left;
+  font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--muted);font-weight:500;padding:0;border-bottom:1px solid var(--line)}
+thead th button{width:100%;text-align:left;border:0;background:transparent;padding:10px 12px;font:inherit;
+  color:inherit;letter-spacing:inherit;text-transform:inherit;display:flex;gap:5px;align-items:center;line-height:1.3}
+thead th button span.lbl{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+thead th button:hover{color:var(--ink)}
+.sortmark{color:var(--accent);font-size:8px;flex:none}
+tbody td{padding:9px 12px;border-bottom:1px solid var(--line-soft);vertical-align:top;
+  color:var(--ink-soft);word-break:break-word;line-height:1.4}
+tbody tr:last-child td{border-bottom:0}
+tbody tr{cursor:pointer;transition:background .12s}
+tbody tr:hover td{background:#F7FAFB}
+td.name{color:var(--ink);font-weight:600}
+.rowidx{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#A9B6C1;text-align:right}
+.tempty{padding:44px 20px;text-align:center;color:var(--muted);font-size:14px}
+
+.statuspick{width:100%;border:1px solid transparent;border-radius:7px;padding:5px 6px;font-size:11.5px;
+  font-weight:600;background:var(--paper);color:var(--ink-soft);outline:0;cursor:pointer}
+.statuspick:focus{border-color:var(--accent)}
+.st-new{background:#EAEEF1;color:#5A6B7A}
+.st-contact{background:var(--blue-tint);color:var(--blue)}
+.st-interview{background:var(--note-tint);color:var(--note)}
+.st-ok{background:var(--ok-tint);color:var(--ok)}
+.st-no{background:var(--no-tint);color:var(--no)}
+
+.notecell{color:var(--note)}
+.notecell.blank{color:#B3BFC9}
+.notecount{font-family:'JetBrains Mono',monospace;font-size:10px;background:var(--note-tint);
+  color:var(--note);border-radius:4px;padding:1px 5px;margin-right:6px}
+
+/* ---- modal ---- */
+.backdrop{position:fixed;inset:0;background:rgba(15,23,31,.5);backdrop-filter:blur(3px);
+  display:flex;align-items:center;justify-content:center;padding:20px;z-index:60}
+.slip{background:var(--card);border-radius:16px;width:100%;max-width:600px;max-height:88vh;
+  display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 70px rgba(10,18,26,.3);
+  border-left:5px solid var(--muted);animation:rise .22s cubic-bezier(.2,.8,.3,1)}
+.slip.ok{border-left-color:var(--ok)}
+.slip.no{border-left-color:var(--no)}
+.slip.neutral{border-left-color:var(--accent)}
+@keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+.slip-head{padding:24px 26px 20px;border-bottom:1px solid var(--line-soft);position:relative}
+.stamp{display:inline-flex;align-items:center;gap:8px;border-radius:7px;padding:6px 12px;
+  font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:.14em;
+  text-transform:uppercase;margin-bottom:14px;animation:stamp .3s cubic-bezier(.2,1.5,.4,1) both}
+.stamp.ok{background:var(--ok-tint);color:var(--ok)}
+.stamp.no{background:var(--no-tint);color:var(--no)}
+.stamp.neutral{background:var(--accent-tint);color:var(--accent)}
+@keyframes stamp{from{transform:scale(1.25);opacity:0}to{transform:scale(1);opacity:1}}
+.slip-name{font-family:'Onest',sans-serif;font-size:24px;font-weight:700;letter-spacing:-.02em;margin:0;word-break:break-word}
+.slip-note{color:var(--muted);font-size:13px;margin:8px 0 0}
+.close-x{position:absolute;top:18px;right:18px;border:0;background:transparent;color:var(--muted);
+  font-size:22px;line-height:1;padding:4px 8px;border-radius:6px}
+.close-x:hover{background:var(--line-soft);color:var(--ink)}
+.slip-body{padding:20px 26px;overflow-y:auto}
+.slip-foot{padding:16px 26px;border-top:1px solid var(--line-soft);background:#FBFCFD;
+  display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap}
+
+.reccard + .reccard{margin-top:22px;padding-top:20px;border-top:2px solid var(--line-soft)}
+.rec-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
+.rec-tag{margin:0;padding:4px 9px;background:var(--paper);border-radius:6px;display:inline-block}
+.statusrow{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+.statusrow label{font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--muted)}
+.statusrow select{border:1px solid var(--line);border-radius:8px;padding:8px 11px;font-size:13.5px;
+  font-weight:600;background:var(--card);color:var(--ink);outline:0}
+.statusrow select:focus{border-color:var(--accent)}
+
+.fields{margin:0}
+.field{padding:10px 0;border-bottom:1px solid var(--line-soft)}
+.field:last-child{border-bottom:0}
+.field dt{font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--muted);margin-bottom:4px}
+.field dd{margin:0;font-size:14.5px;color:var(--ink);word-break:break-word;white-space:pre-wrap}
+.field dd.empty{color:#A9B6C1;font-style:italic}
+.field input{width:100%;border:1px solid var(--line);border-radius:8px;padding:9px 11px;
+  font-size:14px;color:var(--ink);background:var(--card);outline:0}
+.field input:focus{border-color:var(--accent)}
+
+.noteblock{margin-top:16px;background:var(--note-tint);border-radius:11px;padding:14px 16px}
+.noteblock .nlabel{font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--note);margin-bottom:10px}
+.notelog{list-style:none;margin:0 0 12px;padding:0}
+.notelog li{background:var(--card);border-radius:9px;padding:10px 12px;margin-bottom:8px;position:relative}
+.notelog .nmeta{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--note);
+  letter-spacing:.06em;margin-bottom:4px;display:flex;gap:8px;align-items:center}
+.notelog .ntext{font-size:14px;color:var(--ink);white-space:pre-wrap;word-break:break-word;padding-right:22px}
+.notelog .ndel{position:absolute;top:8px;right:8px;border:0;background:transparent;color:#C3B78F;
+  font-size:16px;line-height:1;padding:2px 6px;border-radius:5px}
+.notelog .ndel:hover{background:var(--no-tint);color:var(--no)}
+.noteadd{display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap}
+.noteadd textarea{flex:1;min-width:200px;min-height:62px;resize:vertical;border:1px solid #E4D5AE;
+  border-radius:9px;padding:10px 12px;font-size:14px;line-height:1.5;color:var(--ink);background:var(--card);outline:0}
+.noteadd textarea:focus{border-color:var(--note)}
+.nohint{font-size:12px;color:var(--note);margin:8px 0 0}
+
+.nearby{background:var(--paper);border-radius:10px;padding:14px 16px}
+.nearby p{margin:0 0 10px;font-size:13px;color:var(--ink-soft)}
+.nearby button{border:1px solid var(--line);background:var(--card);border-radius:8px;padding:7px 12px;
+  font-size:13.5px;font-weight:600;color:var(--ink)}
+.nearby button:hover{border-color:var(--accent);color:var(--accent)}
+
+.form-grid{display:grid;gap:14px}
+.f label{display:block;font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+.f input,.f textarea,.f select{width:100%;border:1px solid var(--line);border-radius:9px;padding:11px 13px;
+  font-size:14.5px;color:var(--ink);background:var(--card);outline:0;transition:border-color .15s}
+.f textarea{min-height:70px;resize:vertical}
+.f input:focus,.f textarea:focus,.f select:focus{border-color:var(--accent)}
+.f .req{color:var(--no)}
+.form-error{color:var(--no);font-size:13px;margin:0 0 4px;font-weight:500}
+
+.filepanel{border:1.5px dashed var(--line);border-radius:var(--radius);background:rgba(255,255,255,.6);
+  padding:24px 22px;text-align:center;margin-bottom:14px}
+.filepanel.over{border-color:var(--accent);background:var(--accent-tint)}
+.filepanel h2{font-family:'Onest',sans-serif;font-size:15px;font-weight:600;margin:0 0 6px}
+.filepanel p{color:var(--muted);font-size:13px;margin:0 0 16px;max-width:54ch;margin-inline:auto}
+.fp-actions{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+.fp-meta{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);margin-top:14px}
+
+.toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);background:var(--ink);color:#fff;
+  padding:12px 20px;border-radius:10px;font-size:13.5px;font-weight:500;z-index:90;
+  box-shadow:0 10px 30px rgba(0,0,0,.25);animation:rise .2s ease both;max-width:90vw;text-align:center}
+
+[hidden]{display:none !important}
+@media (prefers-reduced-motion:reduce){*{animation:none !important;transition:none !important}}
+@media (max-width:760px){
+  .logo{height:22px}
+  .brand-rule{display:none}
+  .brand-sub{display:none}
+  .searchbox{flex-wrap:wrap;padding:14px}
+  .searchbox input{width:100%;padding:4px 0 12px}
+  .check-btn{width:100%}
+  .slip-foot{justify-content:stretch}
+  .slip-foot .btn{flex:1}
+  .tbar-right{margin-left:0;width:100%}
+  table{table-layout:auto;font-size:12.5px}
+}
+</style>
+</head>
+<body>
+<div class="shell" id="shell">
+
+  <header class="topbar">
+    <div class="brand">
+<svg class="logo" viewBox="0 0 838 159" fill="none" role="img" aria-label="Glorier" xmlns="http://www.w3.org/2000/svg">
+<g clip-path="url(#clip0_glg)">
+<mask id="mask0_glg" style="mask-type:luminance" maskUnits="userSpaceOnUse" x="0" y="0" width="838" height="159">
+<path d="M838 0H0V159H838V0Z" fill="white"/>
+</mask>
+<g mask="url(#mask0_glg)">
+<path d="M101.041 120.785H160.801L200.605 80.8762H140.846L101.041 120.785Z" fill="#13BDCE"/>
+<path d="M101.041 120.785H80.4531C58.3865 120.785 40.4377 102.789 40.4377 80.6645C40.4377 58.54 58.3865 40.544 80.4531 40.544H240.62H240.726L280.741 0.423451H280.635H80.4531C36.2144 0.317592 0.316742 36.3096 0.316742 80.6645C0.316742 118.88 27.1344 150.955 62.9265 159L101.041 120.785Z" fill="#13BDCE"/>
+<path d="M352.22 72.831H309.67V89.0273H334.693C334.271 90.4035 333.637 91.7796 332.793 92.9441C331.526 94.7437 329.942 96.4375 328.042 97.7078C326.036 99.084 323.713 100.142 320.968 100.883C318.222 101.625 315.161 102.048 311.782 102.048C307.559 102.048 303.758 101.413 300.379 100.354C297.001 99.1897 294.15 97.6019 291.827 95.5905C289.504 93.5793 287.709 91.1445 286.442 88.3921C285.175 85.6398 284.542 82.57 284.542 79.1825C284.542 76.0068 285.175 73.0426 286.337 70.2903C287.498 67.6438 289.293 65.3149 291.51 63.4095C293.833 61.504 296.684 59.9161 300.062 58.8575C303.441 57.7989 307.453 57.1638 311.782 57.1638C313.682 57.1638 315.583 57.2696 317.483 57.4814C319.384 57.6931 321.284 58.0107 322.974 58.4342C324.769 58.8576 326.458 59.281 327.936 59.9161C329.414 60.4454 330.787 61.0807 331.948 61.8217L333.637 62.7743L342.506 48.0599L340.711 47.1073C338.494 45.837 336.171 44.7783 333.743 43.9314C331.315 43.0846 328.781 42.3436 326.247 41.7085C323.713 41.1792 321.073 40.6498 318.434 40.4381C315.794 40.1205 313.155 40.0146 310.621 40.0146C303.441 40.0146 297.001 40.9674 291.405 42.9787C285.809 44.99 280.952 47.7423 277.046 51.2357C273.139 54.729 270.077 58.8575 268.071 63.6213C266.065 68.3848 265.009 73.466 265.009 78.8648C265.009 84.3695 266.065 89.6625 268.177 94.532C270.289 99.4015 273.35 103.742 277.257 107.447C281.163 111.046 286.02 114.01 291.616 116.021C297.212 118.138 303.547 119.197 310.621 119.197C315.583 119.197 320.334 118.668 324.557 117.609C328.781 116.551 332.687 114.963 336.066 112.951C339.444 110.94 342.401 108.505 344.829 105.753C347.257 103.001 349.263 99.9308 350.636 96.5433C352.009 93.2616 352.959 89.6625 353.17 85.8516C353.487 82.1466 353.276 78.2297 352.431 74.3129L352.22 72.831Z" fill="var(--ink)"/>
+<path d="M459.385 116.445C464.664 118.35 470.682 119.409 477.123 119.409C483.563 119.409 489.476 118.456 494.86 116.551C500.245 114.645 504.89 111.893 508.797 108.294C512.704 104.8 515.66 100.46 517.771 95.5905C519.883 90.721 520.939 85.3222 520.939 79.5C520.939 73.6777 519.883 68.2789 517.771 63.5153C515.66 58.6458 512.598 54.4114 508.691 51.0239C504.89 47.5306 500.139 44.8841 494.755 42.9787C489.37 41.0732 483.457 40.1205 477.017 40.1205C470.577 40.1205 464.664 41.0732 459.279 42.9787C453.895 44.8841 449.249 47.6365 445.448 51.0239C441.542 54.5173 438.585 58.7516 436.368 63.5153C434.256 68.3848 433.201 73.7836 433.201 79.5C433.201 85.3222 434.256 90.721 436.368 95.5905C438.48 100.46 441.542 104.694 445.343 108.294C449.355 111.681 454.106 114.433 459.385 116.445ZM452.1 79.3941C452.1 75.9008 452.733 72.725 454 70.0785C455.267 67.3262 456.957 64.9973 459.174 63.0919C461.391 61.1864 464.03 59.7044 467.092 58.7516C470.154 57.6931 473.533 57.1638 477.228 57.1638C480.818 57.1638 484.302 57.6931 487.364 58.7516C490.426 59.8102 493.065 61.1864 495.283 63.0919C497.5 64.9973 499.189 67.3262 500.456 70.0785C501.723 72.8309 502.357 76.0066 502.357 79.3941C502.357 82.8875 501.723 86.0632 500.456 88.8156C499.189 91.5679 497.5 94.0026 495.283 95.9081C493.065 97.9194 490.426 99.4014 487.364 100.46C484.302 101.519 480.924 102.048 477.228 102.048C473.638 102.048 470.154 101.519 467.092 100.46C464.03 99.4014 461.391 97.8136 459.174 95.9081C456.957 94.0026 455.267 91.5679 454 88.8156C452.733 86.0632 452.1 82.8875 452.1 79.3941Z" fill="var(--ink)"/>
+<path d="M428.027 118.244V101.307H385.372V40.9674H366.579V118.244H428.027Z" fill="var(--ink)"/>
+<path d="M726.717 58.0107V40.9674H661.045V118.244H726.717V101.307H722.388H679.839V87.6512H721.544V71.5606H679.839V58.0107H726.717Z" fill="var(--ink)"/>
+<path d="M641.302 40.9674H622.614V118.244H641.302V40.9674Z" fill="var(--ink)"/>
+<path d="M591.573 93.791C593.579 92.8382 595.479 91.6738 597.063 90.5093C599.28 88.8156 601.181 86.8043 602.659 84.4754C604.137 82.2524 605.193 79.7117 605.932 77.0653C606.671 74.4188 606.988 71.6665 606.988 68.8083C606.988 64.5739 606.249 60.6572 604.876 57.1638C603.398 53.6705 601.181 50.7064 598.224 48.2717C595.268 45.8369 591.573 44.0373 587.244 42.767C582.915 41.4967 577.847 40.9674 572.146 40.9674H532.975V118.35H551.769V97.496H571.618L584.816 117.503L585.449 118.35H586.505H604.665H608.36L606.249 115.28L591.573 93.791ZM587.35 68.8083C587.35 70.6079 587.033 72.3016 586.399 73.7836C585.766 75.1598 584.921 76.3243 583.76 77.3828C582.493 78.4414 581.015 79.1825 579.114 79.8176C577.214 80.4528 574.891 80.6645 572.357 80.6645H551.558V57.9048H572.357C577.531 57.9048 581.331 58.8576 583.865 60.8689C586.188 62.6685 587.35 65.3149 587.35 68.8083Z" fill="var(--ink)"/>
+<path d="M801.997 93.791C804.003 92.8382 805.903 91.6738 807.487 90.5093C809.704 88.8156 811.605 86.8043 813.083 84.4754C814.561 82.2524 815.617 79.7117 816.356 77.0653C817.095 74.4188 817.412 71.6665 817.412 68.8083C817.412 64.5739 816.673 60.6572 815.3 57.1638C813.822 53.6705 811.605 50.7064 808.648 48.2717C805.692 45.8369 801.997 44.0373 797.668 42.767C793.339 41.4967 788.271 40.9674 782.57 40.9674H743.293V118.35H762.087V97.496H781.936L795.134 117.503L795.767 118.35H796.823H814.983H818.679L816.567 115.28L801.997 93.791ZM797.879 68.8083C797.879 70.6079 797.562 72.3016 796.929 73.7836C796.295 75.1598 795.451 76.3243 794.289 77.3828C793.022 78.4414 791.544 79.1825 789.644 79.8176C787.743 80.4528 785.42 80.6645 782.886 80.6645H762.087V57.9048H782.886C788.06 57.9048 791.861 58.8576 794.395 60.8689C796.718 62.6685 797.879 65.3149 797.879 68.8083Z" fill="var(--ink)"/>
+<path d="M830.504 42.1318C826.175 42.1318 822.585 45.731 822.585 50.0713C822.585 54.5173 826.069 58.0107 830.504 58.0107C834.833 58.0107 838.422 54.4115 838.422 50.0713C838.317 45.6252 834.833 42.1318 830.504 42.1318ZM830.398 57.1638C826.492 57.1638 823.43 54.0939 823.43 50.0713C823.43 46.1545 826.597 43.0846 830.504 43.0846C834.41 43.0846 837.472 46.1545 837.472 50.0713C837.472 53.988 834.305 57.1638 830.398 57.1638Z" fill="var(--ink)"/>
+<path d="M832.615 53.6704H833.988L831.876 50.7065L832.193 50.6005C833.354 50.283 833.988 49.4361 833.988 48.3775C833.988 47.7423 833.777 47.1072 833.354 46.7896C832.826 46.2603 831.982 45.9427 831.032 45.9427H827.653V53.6704H828.814V50.8124H830.82L832.615 53.6704ZM828.709 47.0014H830.926C832.087 47.0014 832.721 47.5306 832.721 48.4834C832.721 49.4361 831.982 49.9655 830.926 49.9655H828.709V47.0014Z" fill="var(--ink)"/>
+</g>
+</g>
+<defs>
+<clipPath id="clip0_glg">
+<rect width="838" height="159" fill="white"/>
+</clipPath>
+</defs>
+</svg>
+      <span class="brand-rule"></span>
+      <span class="brand-sub" data-t="brandsub">Списък кандидати</span>
+    </div>
+    <div class="topright">
+      <div class="me">
+        <label for="meInput" data-t="youAre">Ти си:</label>
+        <input type="text" id="meInput" maxlength="6" placeholder="ВД" aria-label="Initials">
+      </div>
+      <div class="lang" role="group" aria-label="Language">
+        <button type="button" id="langBg" aria-pressed="true">БГ</button>
+        <button type="button" id="langEn" aria-pressed="false">EN</button>
+      </div>
+    </div>
+  </header>
+
+  <nav class="switch" id="switch" data-view="check" role="tablist">
+    <span class="switch-ind"></span>
+    <button type="button" role="tab" data-view="check" aria-selected="true" data-t="tabCheck">Проверка</button>
+    <button type="button" role="tab" data-view="table" aria-selected="false" data-t="tabTable">Таблица</button>
+  </nav>
+
+  <!-- ============ CHECK ============ -->
+  <section id="viewCheck">
+    <div class="desk">
+      <h1 data-t="deskTitle">Кой да проверим?</h1>
+      <p data-t="deskText">Напиши име на кирилица или латиница, или имейл, и натисни Проверка.</p>
+      <div class="searchwrap">
+        <div class="searchbox">
+          <input type="text" id="q" autocomplete="off" spellcheck="false" placeholder="Атанас Колев" aria-label="Име">
+          <button type="button" class="check-btn" id="btnCheck" data-t="check">Проверка</button>
+        </div>
+        <div class="suggest" id="suggest" hidden role="listbox"></div>
+      </div>
+      <div class="select-row">
+        <span class="col-label" data-t="searchIn">Търси в:</span>
+        <div class="chips" id="colChips"></div>
+      </div>
+      <div class="under-search">
+        <button type="button" class="btn btn-ghost btn-sm" id="btnAddCheck" data-t="addPersonPlus">+ Добави човек</button>
+      </div>
+    </div>
+    <section class="history" id="history" hidden>
+      <div class="history-head">
+        <span class="eyebrow" data-t="recent">Последни проверки</span>
+        <button type="button" class="btn btn-ghost btn-sm" id="btnClearHist" data-t="clear">Изчисти</button>
+      </div>
+      <ul class="hlist" id="hlist"></ul>
+    </section>
+  </section>
+
+  <!-- ============ TABLE ============ -->
+  <section id="viewTable" hidden>
+    <div class="filepanel" id="filepanel" hidden>
+      <h2 data-t="fpTitle">Зареди нов CSV файл</h2>
+      <p data-t="fpText">Пусни файла тук или го избери. Заменя текущия списък само в този браузър.</p>
+      <div class="fp-actions">
+        <button type="button" class="btn btn-solid btn-sm" id="btnPick" data-t="pick">Избери CSV файл</button>
+        <button type="button" class="btn btn-sm" id="btnCancelUpload" data-t="cancel">Отказ</button>
+      </div>
+      <div class="fp-meta" id="fpMeta"></div>
+    </div>
+
+    <div class="tbar">
+      <input type="text" class="tsearch" id="tq" placeholder="Филтрирай…" aria-label="Filter">
+      <div class="chips" id="facets"></div>
+      <div class="tbar-right">
+        <button type="button" class="btn btn-accent btn-sm" id="btnAddTable" data-t="addPersonPlus">+ Добави човек</button>
+        <button type="button" class="btn btn-sm" id="btnDownload" data-t="download">Изтегли CSV</button>
+        <button type="button" class="btn btn-ghost btn-sm" id="btnReplace" data-t="replace">Нов файл</button>
+      </div>
+    </div>
+
+    <div class="tmeta">
+      <span class="eyebrow" id="tCount">—</span>
+      <span class="eyebrow" id="tNotes">—</span>
+      <span class="col-label" data-t="columns">Колони:</span>
+      <div class="chips" id="visChips"></div>
+    </div>
+
+    <div class="tablewrap" id="tablewrap">
+      <table id="table">
+        <colgroup id="colgroup"></colgroup>
+        <thead id="thead"></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+      <div class="tempty" id="tEmpty" hidden data-t="noMatch">Няма съвпадения по този филтър.</div>
+    </div>
+  </section>
+</div>
+
+<input type="file" id="fileInput" accept=".csv,text/csv" hidden>
+
+<div class="backdrop" id="backdrop" hidden>
+  <div class="slip" id="slip" role="dialog" aria-modal="true" aria-labelledby="slipName">
+    <div class="slip-head">
+      <button type="button" class="close-x" id="btnCloseX" aria-label="Close">&times;</button>
+      <div class="stamp" id="stamp"></div>
+      <h2 class="slip-name" id="slipName"></h2>
+      <p class="slip-note" id="slipNote"></p>
+    </div>
+    <div class="slip-body" id="slipBody"></div>
+    <div class="slip-foot" id="slipFoot"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast" hidden></div>
+
+<script>
+(function(){
+"use strict";
+
+/* ================= i18n ================= */
+var T = {
+  bg:{
+    brandsub:"Списък кандидати", youAre:"Ти си:",
+    tabCheck:"Проверка", tabTable:"Таблица",
+    deskTitle:"Кой да проверим?",
+    deskText:"Напиши име на кирилица или латиница, или имейл, и натисни Проверка.",
+    check:"Проверка", searchIn:"Търси в:", columns:"Колони:",
+    addPersonPlus:"+ Добави човек", addPerson:"Добави човек",
+    recent:"Последни проверки", clear:"Изчисти",
+    download:"Изтегли CSV", replace:"Нов файл", pick:"Избери CSV файл", cancel:"Отказ",
+    fpTitle:"Зареди нов CSV файл",
+    fpText:"Пусни файла тук или го избери. Заменя текущия списък само в този браузър.",
+    filterPh:"Филтрирай…", searchPh:"Атанас Колев",
+    noMatch:"Няма съвпадения по този филтър.",
+    approved:"Проверката е одобрена", notfound:"Човекът не съществува",
+    record:"Запис от списъка",
+    inRegister:"Записан в списъка.",
+    notInRegister:"Няма такъв запис в заредения списък.",
+    multi:"Записан е {n} пъти в списъка.", entry:"Запис",
+    close:"Затвори", addTitle:"Нов запис",
+    addNote:"Попълни полетата и запиши. Записът влиза в списъка веднага, а после изтегли обновения CSV.",
+    save:"Запиши", required:"задължително",
+    fillName:"Попълни името.",
+    dupe:"Вече има запис с това име. Натисни Запиши пак, за да добавиш втори.",
+    didYouMean:"Може би имаш предвид:",
+    added:"Записът е добавен. Не забравяй да изтеглиш обновения CSV.",
+    downloaded:"Файлът е изтеглен.",
+    loadedFile:"Зареден файл: ",
+    notes:"Бележки", notePh:"Напиши бележка…", addNoteBtn:"Добави",
+    noNotes:"Още няма бележки.",
+    whoAreYou:"Напиши инициалите си горе вдясно, за да се знае кой пише бележката.",
+    noteAdded:"Бележката е добавена.",
+    statusLabel:"Статус", statusSaved:"Статусът е сменен.",
+    edit:"Редактирай полетата", doneEdit:"Готово",
+    fieldsSaved:"Промените са запазени в списъка.",
+    all:"Всички", records:"записа", withNotes:"с бележки", shown:"показани",
+    empty:"празно", bad:"Файлът не може да се прочете като CSV.", noCols:"Файлът няма колони.",
+    reminder:"Бележките и статусите живеят само в този раздел. Изтегли CSV, за да ги запазиш."
+  },
+  en:{
+    brandsub:"Candidate list", youAre:"You are:",
+    tabCheck:"Check", tabTable:"Table",
+    deskTitle:"Who are we checking?",
+    deskText:"Type a name in Cyrillic or Latin, or an email, and press Check.",
+    check:"Check", searchIn:"Search in:", columns:"Columns:",
+    addPersonPlus:"+ Add person", addPerson:"Add person",
+    recent:"Recent checks", clear:"Clear",
+    download:"Download CSV", replace:"New file", pick:"Choose CSV file", cancel:"Cancel",
+    fpTitle:"Load a new CSV file",
+    fpText:"Drop the file here or pick it. Replaces the current list in this browser only.",
+    filterPh:"Filter…", searchPh:"Atanas Kolev",
+    noMatch:"No rows match this filter.",
+    approved:"Check approved", notfound:"Person doesn't exist",
+    record:"Record from the list",
+    inRegister:"On the list.",
+    notInRegister:"No such record in the loaded list.",
+    multi:"Listed {n} times in the register.", entry:"Entry",
+    close:"Close", addTitle:"New record",
+    addNote:"Fill the fields and save. The record joins the list right away — then download the updated CSV.",
+    save:"Save", required:"required",
+    fillName:"Enter the name.",
+    dupe:"A record with this name already exists. Press Save again to add a second one.",
+    didYouMean:"Did you mean:",
+    added:"Record added. Remember to download the updated CSV.",
+    downloaded:"File downloaded.",
+    loadedFile:"Loaded file: ",
+    notes:"Notes", notePh:"Write a note…", addNoteBtn:"Add",
+    noNotes:"No notes yet.",
+    whoAreYou:"Enter your initials top right so the note is signed.",
+    noteAdded:"Note added.",
+    statusLabel:"Status", statusSaved:"Status changed.",
+    edit:"Edit fields", doneEdit:"Done",
+    fieldsSaved:"Changes saved to the list.",
+    all:"All", records:"records", withNotes:"with notes", shown:"shown",
+    empty:"empty", bad:"This file can't be read as CSV.", noCols:"The file has no columns.",
+    reminder:"Notes and statuses live in this tab only. Download the CSV to keep them."
+  }
+};
+var lang="bg";
+function t(k){ return T[lang][k]||k; }
+function $(id){ return document.getElementById(id); }
+
+/* ================= statuses ================= */
+var STATUSES=[
+  {v:"Нов",          en:"New",       cls:"st-new"},
+  {v:"Свързахме се", en:"Contacted", cls:"st-contact"},
+  {v:"Интервю",      en:"Interview", cls:"st-interview"},
+  {v:"Одобрен",      en:"Approved",  cls:"st-ok"},
+  {v:"Отказан",      en:"Rejected",  cls:"st-no"}
+];
+function statusMeta(v){
+  for(var i=0;i<STATUSES.length;i++) if(STATUSES[i].v===v) return STATUSES[i];
+  return {v:v||STATUSES[0].v, en:v||STATUSES[0].en, cls:"st-new"};
+}
+function statusLabel(v){ var m=statusMeta(v); return lang==="bg"?m.v:m.en; }
+
+function applyLang(){
+  document.documentElement.lang=lang;
+  document.querySelectorAll("[data-t]").forEach(function(el){ el.textContent=t(el.getAttribute("data-t")); });
+  $("q").placeholder=t("searchPh");
+  $("tq").placeholder=t("filterPh");
+  $("langBg").setAttribute("aria-pressed",lang==="bg");
+  $("langEn").setAttribute("aria-pressed",lang==="en");
+  $("fpMeta").textContent=t("loadedFile")+S.fileName;
+  renderColChips(); renderVisChips(); renderFacets(); renderTable(); renderHistory();
+}
+
+/* ================= text helpers ================= */
+var CYR={"а":"a","б":"b","в":"v","г":"g","д":"d","е":"e","ж":"zh","з":"z","и":"i","й":"i",
+"к":"k","л":"l","м":"m","н":"n","о":"o","п":"p","р":"r","с":"s","т":"t","у":"u","ф":"f",
+"х":"h","ц":"ts","ч":"ch","ш":"sh","щ":"sht","ъ":"a","ь":"","ю":"yu","я":"ya",
+"ы":"i","э":"e","ё":"e","і":"i","ї":"i","є":"e"};
+function translit(s){ var o=""; for(var i=0;i<s.length;i++){ var c=s[i]; o+=(CYR[c]!==undefined)?CYR[c]:c; } return o; }
+function norm(s){
+  s=(s||"").toString().toLowerCase().trim();
+  s=s.normalize?s.normalize("NFD").replace(/[\u0300-\u036f]/g,""):s;
+  s=translit(s);
+  return s.replace(/[^a-z0-9\s]/g," ").replace(/\s+/g," ").trim();
+}
+function sortKey(s){ return norm(s).split(" ").filter(Boolean).sort().join(" "); }
+function lev(a,b){
+  if(a===b) return 0;
+  var m=a.length,n=b.length; if(!m) return n; if(!n) return m;
+  var prev=new Array(n+1),cur=new Array(n+1),i,j;
+  for(j=0;j<=n;j++) prev[j]=j;
+  for(i=1;i<=m;i++){
+    cur[0]=i;
+    for(j=1;j<=n;j++) cur[j]=Math.min(prev[j]+1,cur[j-1]+1,prev[j-1]+(a[i-1]===b[j-1]?0:1));
+    for(j=0;j<=n;j++) prev[j]=cur[j];
+  }
+  return prev[n];
+}
+
+/* ================= CSV ================= */
+function sniffDelimiter(text){
+  var line="",inQ=false;
+  for(var i=0;i<text.length;i++){
+    var c=text[i];
+    if(c==='"') inQ=!inQ;
+    if(!inQ&&c==="\n") break;
+    line+=c;
+  }
+  var counts={",":0,";":0,"\t":0,"|":0},q=false;
+  for(var k=0;k<line.length;k++){
+    var ch=line[k];
+    if(ch==='"') q=!q; else if(!q&&counts[ch]!==undefined) counts[ch]++;
+  }
+  var best=",",bv=-1;
+  Object.keys(counts).forEach(function(d){ if(counts[d]>bv){bv=counts[d];best=d;} });
+  return bv>0?best:",";
+}
+function parseCSV(text,delim){
+  text=text.replace(/^\uFEFF/,"").replace(/\r\n/g,"\n").replace(/\r/g,"\n");
+  var rows=[],row=[],cell="",inQ=false,i=0;
+  while(i<text.length){
+    var c=text[i];
+    if(inQ){
+      if(c==='"'){ if(text[i+1]==='"'){ cell+='"'; i+=2; continue; } inQ=false; i++; continue; }
+      cell+=c; i++; continue;
+    }
+    if(c==='"'){ inQ=true; i++; continue; }
+    if(c===delim){ row.push(cell); cell=""; i++; continue; }
+    if(c==="\n"){ row.push(cell); rows.push(row); row=[]; cell=""; i++; continue; }
+    cell+=c; i++;
+  }
+  row.push(cell); rows.push(row);
+  return rows.filter(function(r){ return r.some(function(v){ return v.trim()!==""; }); });
+}
+function toCSV(headers,records,delim){
+  function esc(v){
+    v=(v==null?"":String(v));
+    if(v.indexOf(delim)>-1||v.indexOf('"')>-1||v.indexOf("\n")>-1) return '"'+v.replace(/"/g,'""')+'"';
+    return v;
+  }
+  var lines=[headers.map(esc).join(delim)];
+  records.forEach(function(r){ lines.push(headers.map(function(h){ return esc(r[h]); }).join(delim)); });
+  return "\uFEFF"+lines.join("\r\n");
+}
+
+/* ================= state ================= */
+var S={ headers:[], records:[], nameCols:[], notesCol:"", statusCol:"", hidden:{},
+        delim:",", fileName:"", history:[], sort:{col:"",dir:1}, filter:"", facetVals:{}, me:"" };
+
+var NAME_HINTS=["име","имена","name","person","служител","employee","шофьор","driver","лице"];
+var NOT_NAME=["имейл","мейл","email","e-mail","mail","телефон","phone"];
+var NOTE_HINTS=["бележ","коментар","note","comment","remark"];
+var STATUS_HINTS=["статус","status","етап","stage"];
+
+function guessNameCols(headers){
+  var hits=headers.filter(function(h){
+    var l=h.toLowerCase().trim();
+    if(NOT_NAME.some(function(n){ return l.indexOf(n)>-1; })) return false;
+    return NAME_HINTS.some(function(n){ return l.indexOf(n)>-1; });
+  });
+  return hits.length?hits:[headers[0]];
+}
+function findCol(headers,hints){
+  for(var i=0;i<headers.length;i++){
+    var l=headers[i].toLowerCase();
+    if(hints.some(function(n){ return l.indexOf(n)>-1; })) return headers[i];
+  }
+  return "";
+}
+
+function loadRows(rows,fileName,delim){
+  if(!rows.length||!rows[0].length){ toast(t("noCols")); return; }
+  var headers=rows[0].map(function(h,i){ return h.trim()||("Column "+(i+1)); });
+  var seen={};
+  headers=headers.map(function(h){ if(seen[h]){ seen[h]++; return h+" ("+seen[h]+")"; } seen[h]=1; return h; });
+
+  var records=rows.slice(1).map(function(r){
+    var o={}; headers.forEach(function(h,i){ o[h]=(r[i]||"").trim(); }); return o;
+  });
+
+  S.statusCol=findCol(headers,STATUS_HINTS);
+  if(!S.statusCol){
+    S.statusCol="Статус";
+    headers.push(S.statusCol);
+    records.forEach(function(r){ r[S.statusCol]=STATUSES[0].v; });
+  } else {
+    records.forEach(function(r){ if(!r[S.statusCol]) r[S.statusCol]=STATUSES[0].v; });
+  }
+  S.notesCol=findCol(headers,NOTE_HINTS);
+  if(!S.notesCol){
+    S.notesCol="Бележки";
+    headers.push(S.notesCol);
+    records.forEach(function(r){ r[S.notesCol]=""; });
+  }
+
+  S.headers=headers; S.records=records; S.delim=delim||",";
+  S.fileName=fileName; S.nameCols=guessNameCols(headers);
+  S.history=[]; S.sort={col:"",dir:1}; S.filter=""; S.facetVals={}; S.hidden={};
+
+  $("tq").value="";
+  $("fpMeta").textContent=t("loadedFile")+fileName;
+  $("filepanel").hidden=true;
+  renderColChips(); renderVisChips(); renderFacets(); renderTable(); renderHistory();
+}
+
+/* ================= record helpers ================= */
+function primaryCol(){ return S.nameCols[0]||S.headers[0]; }
+function nameOf(r){
+  for(var i=0;i<S.nameCols.length;i++){ var v=(r[S.nameCols[i]]||"").trim(); if(v) return v; }
+  return "";
+}
+function namesOf(r){ return S.nameCols.map(function(h){ return (r[h]||"").trim(); }).filter(Boolean); }
+
+/* notes are an append-only log: "[30.07.2026 · ВД] текст" per line */
+function parseNotes(rec){
+  var raw=(rec[S.notesCol]||"").trim();
+  if(!raw) return [];
+  return raw.split("\n").filter(function(l){ return l.trim(); }).map(function(line){
+    var m=line.match(/^\[([^\]·]+?)\s*·\s*([^\]]*?)\]\s*([\s\S]*)$/);
+    if(m) return {date:m[1].trim(), who:m[2].trim(), text:m[3].trim(), raw:line};
+    return {date:"", who:"", text:line.trim(), raw:line};
+  });
+}
+function writeNotes(rec,list){
+  rec[S.notesCol]=list.map(function(n){
+    return n.date||n.who ? "["+n.date+" · "+n.who+"] "+n.text : n.text;
+  }).join("\n");
+}
+function stamp(){
+  var d=new Date();
+  return String(d.getDate()).padStart(2,"0")+"."+String(d.getMonth()+1).padStart(2,"0")+"."+d.getFullYear();
+}
+function addNote(rec,text){
+  var list=parseNotes(rec);
+  list.push({date:stamp(), who:S.me||"—", text:text.replace(/\n+/g," ").trim()});
+  writeNotes(rec,list);
+}
+
+/* ================= matching ================= */
+function findAll(query){
+  var raw=(query||"").trim().toLowerCase();
+  var nq=norm(query), sq=sortKey(query);
+  if(!nq&&!raw) return [];
+  if(raw.indexOf("@")>-1){
+    return S.records.filter(function(r){
+      return S.headers.some(function(h){ return (r[h]||"").trim().toLowerCase()===raw; });
+    });
+  }
+  var exact=S.records.filter(function(r){ return namesOf(r).some(function(n){ return norm(n)===nq; }); });
+  if(exact.length) return exact;
+  if(!sq) return [];
+  return S.records.filter(function(r){ return namesOf(r).some(function(n){ return sortKey(n)===sq; }); });
+}
+function findExact(q){ var m=findAll(q); return m.length?m[0]:null; }
+function findNearest(query){
+  var nq=norm(query); if(!nq) return null;
+  var best=null,bd=99,label="";
+  S.records.forEach(function(r){
+    namesOf(r).forEach(function(n){
+      var d=lev(nq,norm(n));
+      if(d<bd){ bd=d; best=r; label=n; }
+    });
+  });
+  var tol=nq.length<=6?2:(nq.length<=12?3:4);
+  return bd<=tol?{rec:best,label:label}:null;
+}
+function suggestions(query){
+  var nq=norm(query); if(nq.length<2) return [];
+  var starts=[],has=[],seen={};
+  S.records.forEach(function(r){
+    namesOf(r).forEach(function(raw){
+      var n=norm(raw);
+      if(!n||seen[n]) return;
+      if(n.indexOf(nq)===0){ seen[n]=1; starts.push(raw); }
+      else if(n.indexOf(nq)>-1){ seen[n]=1; has.push(raw); }
+    });
+  });
+  return starts.concat(has).slice(0,6);
+}
+
+/* ================= chips ================= */
+function renderColChips(){
+  var box=$("colChips"); if(!box) return;
+  box.innerHTML="";
+  S.headers.forEach(function(h){
+    if(h===S.notesCol||h===S.statusCol) return;
+    var b=document.createElement("button");
+    b.type="button"; b.className="colchip";
+    b.setAttribute("aria-pressed",S.nameCols.indexOf(h)>-1);
+    b.textContent=h;
+    b.addEventListener("click",function(){
+      var i=S.nameCols.indexOf(h);
+      if(i>-1){ if(S.nameCols.length===1) return; S.nameCols.splice(i,1); }
+      else { S.nameCols.push(h); S.nameCols=S.headers.filter(function(x){ return S.nameCols.indexOf(x)>-1; }); }
+      renderColChips(); renderTable(); hideSuggest();
+    });
+    box.appendChild(b);
+  });
+}
+function renderVisChips(){
+  var box=$("visChips"); if(!box) return;
+  box.innerHTML="";
+  S.headers.forEach(function(h){
+    var b=document.createElement("button");
+    b.type="button"; b.className="colchip";
+    b.setAttribute("aria-pressed", !S.hidden[h]);
+    b.textContent=h;
+    b.addEventListener("click",function(){
+      if(S.hidden[h]) delete S.hidden[h]; else S.hidden[h]=1;
+      renderVisChips(); renderTable();
+    });
+    box.appendChild(b);
+  });
+}
+function visibleCols(){ return S.headers.filter(function(h){ return !S.hidden[h]; }); }
+
+/* ================= facets ================= */
+function facetCols(){
+  var out=[];
+  if(S.statusCol) out.push(S.statusCol);
+  S.headers.forEach(function(h){
+    if(out.length>=3) return;
+    if(h===S.notesCol||h===S.statusCol||S.nameCols.indexOf(h)>-1) return;
+    if(NOT_NAME.some(function(n){ return h.toLowerCase().indexOf(n)>-1; })) return;
+    var vals={},n=0,ok=true;
+    for(var i=0;i<S.records.length;i++){
+      var v=(S.records[i][h]||"").trim();
+      if(!vals[v]){ vals[v]=1; n++; if(n>8){ ok=false; break; } }
+    }
+    if(ok&&n>=2) out.push(h);
+  });
+  return out.slice(0,3);
+}
+function renderFacets(){
+  var box=$("facets"); if(!box) return;
+  box.innerHTML="";
+  facetCols().forEach(function(h){
+    var vals=[];
+    if(h===S.statusCol){
+      vals=STATUSES.map(function(s){ return s.v; });
+    } else {
+      S.records.forEach(function(r){
+        var v=(r[h]||"").trim();
+        if(v&&vals.indexOf(v)===-1) vals.push(v);
+      });
+      vals.sort(function(a,b){ return a.localeCompare(b,"bg"); });
+    }
+    var sel=document.createElement("select");
+    sel.className="facet";
+    var o0=document.createElement("option");
+    o0.value=""; o0.textContent=(h===S.statusCol?t("statusLabel"):h)+": "+t("all");
+    sel.appendChild(o0);
+    vals.forEach(function(v){
+      var o=document.createElement("option");
+      o.value=v; o.textContent=(h===S.statusCol)?statusLabel(v):v;
+      if(S.facetVals[h]===v) o.selected=true;
+      sel.appendChild(o);
+    });
+    sel.addEventListener("change",function(){
+      if(sel.value) S.facetVals[h]=sel.value; else delete S.facetVals[h];
+      renderTable();
+    });
+    box.appendChild(sel);
+  });
+}
+
+/* ================= table ================= */
+function visibleRecords(){
+  var f=norm(S.filter), fRaw=S.filter.toLowerCase().trim();
+  return S.records.filter(function(r){
+    var ok=true;
+    Object.keys(S.facetVals).forEach(function(h){
+      if((r[h]||"").trim()!==S.facetVals[h]) ok=false;
+    });
+    if(!ok) return false;
+    if(!fRaw) return true;
+    return S.headers.some(function(h){
+      var v=(r[h]||"");
+      return norm(v).indexOf(f)>-1 || v.toLowerCase().indexOf(fRaw)>-1;
+    });
+  });
+}
+
+function colWidth(h){
+  if(h===S.notesCol) return "26%";
+  if(h===S.statusCol) return "9%";
+  if(S.nameCols.indexOf(h)>-1) return "12%";
+  if(NOT_NAME.some(function(n){ return h.toLowerCase().indexOf(n)>-1; })) return "15%";
+  return "auto";
+}
+
+function renderTable(){
+  var thead=$("thead"), tbody=$("tbody"), cg=$("colgroup");
+  if(!thead) return;
+  thead.innerHTML=""; tbody.innerHTML=""; cg.innerHTML="";
+
+  var cols=visibleCols();
+
+  var c0=document.createElement("col"); c0.style.width="42px"; cg.appendChild(c0);
+  cols.forEach(function(h){
+    var c=document.createElement("col");
+    var w=colWidth(h);
+    if(w!=="auto") c.style.width=w;
+    cg.appendChild(c);
+  });
+
+  var tr=document.createElement("tr");
+  var thIdx=document.createElement("th"); thIdx.className="rowidx";
+  thIdx.textContent="#"; thIdx.style.padding="10px 8px";
+  tr.appendChild(thIdx);
+  cols.forEach(function(h){
+    var th=document.createElement("th");
+    var b=document.createElement("button"); b.type="button";
+    var lbl=document.createElement("span"); lbl.className="lbl";
+    lbl.textContent = h===S.statusCol ? t("statusLabel") : (h===S.notesCol ? t("notes") : h);
+    b.appendChild(lbl);
+    if(S.sort.col===h){
+      var m=document.createElement("span");
+      m.className="sortmark"; m.textContent=S.sort.dir>0?"▲":"▼";
+      b.appendChild(m);
+    }
+    b.addEventListener("click",function(){
+      if(S.sort.col===h) S.sort.dir=-S.sort.dir; else { S.sort.col=h; S.sort.dir=1; }
+      renderTable();
+    });
+    th.appendChild(b); tr.appendChild(th);
+  });
+  thead.appendChild(tr);
+
+  var rows=visibleRecords();
+  if(S.sort.col){
+    rows=rows.slice().sort(function(a,b){
+      var x=(a[S.sort.col]||""), y=(b[S.sort.col]||"");
+      if(!x&&y) return 1; if(x&&!y) return -1;
+      return x.localeCompare(y,"bg")*S.sort.dir;
+    });
+  }
+
+  rows.forEach(function(rec,i){
+    var tr=document.createElement("tr");
+    var td0=document.createElement("td");
+    td0.className="rowidx"; td0.textContent=i+1;
+    tr.appendChild(td0);
+
+    cols.forEach(function(h){
+      var td=document.createElement("td");
+      var v=(rec[h]||"").trim();
+
+      if(h===S.statusCol){
+        var sel=document.createElement("select");
+        sel.className="statuspick "+statusMeta(v).cls;
+        STATUSES.forEach(function(s){
+          var o=document.createElement("option");
+          o.value=s.v; o.textContent=lang==="bg"?s.v:s.en;
+          if(s.v===v) o.selected=true;
+          sel.appendChild(o);
+        });
+        sel.addEventListener("click",function(e){ e.stopPropagation(); });
+        sel.addEventListener("change",function(e){
+          e.stopPropagation();
+          rec[h]=sel.value;
+          sel.className="statuspick "+statusMeta(sel.value).cls;
+          toast(t("statusSaved"));
+        });
+        td.appendChild(sel);
+      } else if(h===S.notesCol){
+        var list=parseNotes(rec);
+        td.className="notecell"+(list.length?"":" blank");
+        if(list.length){
+          var cnt=document.createElement("span");
+          cnt.className="notecount"; cnt.textContent=list.length;
+          td.appendChild(cnt);
+          var last=list[list.length-1];
+          td.appendChild(document.createTextNode(last.text.length>110?last.text.slice(0,110)+"…":last.text));
+        } else {
+          td.textContent="+ "+t("notes").toLowerCase();
+        }
+      } else {
+        if(S.nameCols.indexOf(h)>-1) td.className="name";
+        td.textContent=v||"—";
+      }
+      tr.appendChild(td);
+    });
+    tr.addEventListener("click",function(){ showRecord(rec); });
+    tbody.appendChild(tr);
+  });
+
+  $("tEmpty").hidden=rows.length>0;
+  $("table").hidden=rows.length===0;
+
+  var withNotes=S.records.filter(function(r){ return parseNotes(r).length; }).length;
+  $("tCount").textContent = rows.length===S.records.length
+    ? S.records.length+" "+t("records")
+    : rows.length+" / "+S.records.length+" "+t("shown");
+  $("tNotes").textContent = withNotes+" "+t("withNotes");
+}
+
+/* ================= modal ================= */
+var lastFocus=null;
+function openModal(){
+  lastFocus=document.activeElement;
+  $("backdrop").hidden=false;
+  var f=$("slip").querySelector("button, input, textarea, select");
+  if(f) f.focus();
+}
+function closeModal(){
+  $("backdrop").hidden=true;
+  $("slip").className="slip";
+  $("stamp").style.display="";
+  if(lastFocus&&lastFocus.focus) lastFocus.focus();
+}
+function mkBtn(label,cls,fn){
+  var b=document.createElement("button");
+  b.type="button"; if(cls) b.className=cls;
+  b.textContent=label; b.addEventListener("click",fn);
+  return b;
+}
+
+function buildRecordCard(rec,index,total){
+  var card=document.createElement("div");
+  card.className="reccard";
+
+  var head=document.createElement("div"); head.className="rec-head";
+  var tag=document.createElement("span"); tag.className="eyebrow rec-tag";
+  tag.textContent = total>1 ? t("entry")+" "+index+" / "+total : t("record");
+  head.appendChild(tag);
+
+  var editing=false;
+  var editBtn=mkBtn(t("edit"),"btn btn-ghost btn-sm",function(){
+    editing=!editing;
+    editBtn.textContent=editing?t("doneEdit"):t("edit");
+    renderFields();
+    if(!editing){ renderTable(); toast(t("fieldsSaved")); }
+  });
+  head.appendChild(editBtn);
+  card.appendChild(head);
+
+  /* status */
+  var srow=document.createElement("div"); srow.className="statusrow";
+  var slab=document.createElement("label"); slab.textContent=t("statusLabel");
+  var ssel=document.createElement("select");
+  STATUSES.forEach(function(s){
+    var o=document.createElement("option");
+    o.value=s.v; o.textContent=lang==="bg"?s.v:s.en;
+    if(s.v===(rec[S.statusCol]||STATUSES[0].v)) o.selected=true;
+    ssel.appendChild(o);
+  });
+  ssel.addEventListener("change",function(){
+    rec[S.statusCol]=ssel.value;
+    renderTable(); toast(t("statusSaved"));
+  });
+  srow.appendChild(slab); srow.appendChild(ssel);
+  card.appendChild(srow);
+
+  var dl=document.createElement("dl"); dl.className="fields";
+  card.appendChild(dl);
+  function renderFields(){
+    dl.innerHTML="";
+    S.headers.forEach(function(h){
+      if(h===S.notesCol||h===S.statusCol) return;
+      var div=document.createElement("div"); div.className="field";
+      var dt=document.createElement("dt"); dt.textContent=h;
+      var dd=document.createElement("dd");
+      var v=(rec[h]||"").trim();
+      if(editing){
+        var inp=document.createElement("input");
+        inp.type="text"; inp.value=v;
+        inp.addEventListener("input",function(){ rec[h]=inp.value; });
+        dd.appendChild(inp);
+      } else if(v){ dd.textContent=v; }
+      else { dd.textContent=t("empty"); dd.className="empty"; }
+      div.appendChild(dt); div.appendChild(dd); dl.appendChild(div);
+    });
+  }
+  renderFields();
+
+  /* notes log */
+  var nb=document.createElement("div"); nb.className="noteblock";
+  var nl=document.createElement("div"); nl.className="nlabel"; nl.textContent=t("notes");
+  nb.appendChild(nl);
+  var ul=document.createElement("ul"); ul.className="notelog";
+  nb.appendChild(ul);
+
+  function renderLog(){
+    ul.innerHTML="";
+    var list=parseNotes(rec);
+    if(!list.length){
+      var li=document.createElement("li");
+      var e=document.createElement("div"); e.className="ntext"; e.style.color="#9C8A5E";
+      e.textContent=t("noNotes");
+      li.appendChild(e); ul.appendChild(li);
+      return;
+    }
+    list.forEach(function(n,i){
+      var li=document.createElement("li");
+      if(n.date||n.who){
+        var meta=document.createElement("div"); meta.className="nmeta";
+        meta.textContent=(n.date||"—")+"  ·  "+(n.who||"—");
+        li.appendChild(meta);
+      }
+      var tx=document.createElement("div"); tx.className="ntext"; tx.textContent=n.text;
+      li.appendChild(tx);
+      var del=document.createElement("button");
+      del.type="button"; del.className="ndel"; del.textContent="×";
+      del.setAttribute("aria-label","delete note");
+      del.addEventListener("click",function(){
+        var cur=parseNotes(rec);
+        cur.splice(i,1);
+        writeNotes(rec,cur);
+        renderLog(); renderTable();
+      });
+      li.appendChild(del);
+      ul.appendChild(li);
+    });
+  }
+  renderLog();
+
+  var addRow=document.createElement("div"); addRow.className="noteadd";
+  var ta=document.createElement("textarea"); ta.placeholder=t("notePh");
+  var addBtn=mkBtn(t("addNoteBtn"),"btn btn-accent",function(){
+    var txt=ta.value.trim();
+    if(!txt) { ta.focus(); return; }
+    if(!S.me){ toast(t("whoAreYou")); $("meInput").focus(); return; }
+    addNote(rec,txt);
+    ta.value="";
+    renderLog(); renderTable();
+    toast(t("noteAdded"));
+  });
+  ta.addEventListener("keydown",function(e){
+    if(e.key==="Enter"&&(e.ctrlKey||e.metaKey)){ e.preventDefault(); addBtn.click(); }
+  });
+  addRow.appendChild(ta); addRow.appendChild(addBtn);
+  nb.appendChild(addRow);
+
+  if(!S.me){
+    var hint=document.createElement("p"); hint.className="nohint";
+    hint.textContent=t("whoAreYou");
+    nb.appendChild(hint);
+  }
+  card.appendChild(nb);
+  return card;
+}
+
+function showApproved(matches){
+  $("slip").className="slip ok";
+  $("stamp").className="stamp ok";
+  $("stamp").style.display="";
+  $("stamp").textContent="✓ "+t("approved");
+  $("slipName").textContent=nameOf(matches[0])||"—";
+  $("slipNote").textContent=matches.length>1?t("multi").replace("{n}",matches.length):t("inRegister");
+  var body=$("slipBody"); body.innerHTML="";
+  matches.forEach(function(rec,i){ body.appendChild(buildRecordCard(rec,i+1,matches.length)); });
+  var foot=$("slipFoot"); foot.innerHTML="";
+  foot.appendChild(mkBtn(t("close"),"btn btn-solid",closeModal));
+  openModal();
+}
+function showRecord(rec){
+  $("slip").className="slip neutral";
+  $("stamp").className="stamp neutral";
+  $("stamp").style.display="";
+  $("stamp").textContent="✓ "+t("approved");
+  $("slipName").textContent=nameOf(rec)||"—";
+  $("slipNote").textContent=t("inRegister");
+  var body=$("slipBody"); body.innerHTML="";
+  body.appendChild(buildRecordCard(rec,1,1));
+  var foot=$("slipFoot"); foot.innerHTML="";
+  foot.appendChild(mkBtn(t("close"),"btn btn-solid",closeModal));
+  openModal();
+}
+function showNotFound(query){
+  $("slip").className="slip no";
+  $("stamp").className="stamp no";
+  $("stamp").style.display="";
+  $("stamp").textContent="✕ "+t("notfound");
+  $("slipName").textContent=query;
+  $("slipNote").textContent=t("notInRegister");
+  var body=$("slipBody"); body.innerHTML="";
+  var near=findNearest(query);
+  if(near){
+    var box=document.createElement("div"); box.className="nearby";
+    var p=document.createElement("p"); p.textContent=t("didYouMean");
+    box.appendChild(p);
+    box.appendChild(mkBtn(near.label,"",function(){ $("q").value=near.label; closeModal(); runCheck(); }));
+    body.appendChild(box);
+  }
+  var foot=$("slipFoot"); foot.innerHTML="";
+  foot.appendChild(mkBtn(t("close"),"btn",closeModal));
+  foot.appendChild(mkBtn("+ "+t("addPerson"),"btn btn-accent",function(){ showAddForm(query); }));
+  openModal();
+}
+
+function showAddForm(prefill){
+  var dupeAck=false;
+  $("slip").className="slip neutral";
+  $("stamp").style.display="none";
+  $("slipName").textContent=t("addTitle");
+  $("slipNote").textContent=t("addNote");
+
+  var body=$("slipBody"); body.innerHTML="";
+  var err=document.createElement("p"); err.className="form-error"; err.hidden=true;
+  body.appendChild(err);
+
+  var grid=document.createElement("div"); grid.className="form-grid";
+  var inputs={};
+  S.headers.forEach(function(h){
+    var wrap=document.createElement("div"); wrap.className="f";
+    var lab=document.createElement("label");
+    lab.textContent = h===S.statusCol ? t("statusLabel") : (h===S.notesCol ? t("notes") : h);
+    if(h===primaryCol()){
+      var r=document.createElement("span"); r.className="req"; r.textContent=" · "+t("required");
+      lab.appendChild(r);
+    }
+    var inp;
+    if(h===S.statusCol){
+      inp=document.createElement("select");
+      STATUSES.forEach(function(s){
+        var o=document.createElement("option");
+        o.value=s.v; o.textContent=lang==="bg"?s.v:s.en;
+        inp.appendChild(o);
+      });
+    } else if(h===S.notesCol){
+      inp=document.createElement("textarea");
+      inp.placeholder=t("notePh");
+    } else {
+      inp=document.createElement("input"); inp.type="text";
+      inp.value=(h===primaryCol()&&prefill)?prefill:"";
+    }
+    inputs[h]=inp;
+    wrap.appendChild(lab); wrap.appendChild(inp);
+    grid.appendChild(wrap);
+  });
+  body.appendChild(grid);
+
+  var foot=$("slipFoot"); foot.innerHTML="";
+  foot.appendChild(mkBtn(t("cancel"),"btn",closeModal));
+  foot.appendChild(mkBtn(t("save"),"btn btn-accent",function(){
+    var name=inputs[primaryCol()].value.trim();
+    if(!name){ err.textContent=t("fillName"); err.hidden=false; inputs[primaryCol()].focus(); return; }
+    if(findExact(name)&&!dupeAck){
+      dupeAck=true; err.textContent=t("dupe"); err.hidden=false;
+      inputs[primaryCol()].focus(); return;
+    }
+    var rec={};
+    S.headers.forEach(function(h){
+      if(h===S.notesCol){ rec[h]=""; return; }
+      rec[h]=inputs[h].value.trim();
+    });
+    var firstNote=inputs[S.notesCol].value.trim();
+    if(firstNote) addNote(rec,firstNote);
+    S.records.push(rec);
+    closeModal();
+    $("q").value="";
+    pushHistory(name,true);
+    renderFacets(); renderTable();
+    toast(t("added"));
+  }));
+
+  openModal();
+  var first=inputs[primaryCol()];
+  if(first){ first.focus(); if(first.select) first.select(); }
+}
+
+/* ================= history ================= */
+function pushHistory(name,ok){
+  var d=new Date();
+  S.history.unshift({name:name,ok:ok,
+    time:String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0")});
+  S.history=S.history.slice(0,8);
+  renderHistory();
+}
+function renderHistory(){
+  var ul=$("hlist"); if(!ul) return;
+  ul.innerHTML="";
+  $("history").hidden=S.history.length===0;
+  S.history.forEach(function(h){
+    var li=document.createElement("li");
+    var b=document.createElement("button"); b.type="button";
+    var n=document.createElement("span"); n.className="hname"; n.textContent=h.name;
+    var c=document.createElement("span"); c.className="chip "+(h.ok?"ok":"no");
+    c.textContent=h.ok?t("approved"):t("notfound");
+    var tm=document.createElement("span"); tm.className="htime"; tm.textContent=h.time;
+    b.appendChild(n); b.appendChild(c); b.appendChild(tm);
+    b.addEventListener("click",function(){ $("q").value=h.name; runCheck(); });
+    li.appendChild(b); ul.appendChild(li);
+  });
+}
+
+/* ================= toast ================= */
+var toastTimer=null;
+function toast(msg){
+  var el=$("toast");
+  el.textContent=msg; el.hidden=false;
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(function(){ el.hidden=true; },3800);
+}
+
+/* ================= actions ================= */
+function runCheck(){
+  var q=$("q").value.trim();
+  hideSuggest();
+  if(!q){ $("q").focus(); return; }
+  var m=findAll(q);
+  if(m.length){ pushHistory(nameOf(m[0]),true); showApproved(m); }
+  else { pushHistory(q,false); showNotFound(q); }
+}
+function readFile(file){
+  var fr=new FileReader();
+  fr.onload=function(){
+    try{
+      var text=fr.result, d=sniffDelimiter(text);
+      loadRows(parseCSV(text,d), file.name, d);
+      setView("table");
+    }catch(e){ toast(t("bad")); }
+  };
+  fr.onerror=function(){ toast(t("bad")); };
+  fr.readAsText(file,"UTF-8");
+}
+function download(){
+  var csv=toCSV(S.headers,S.records,S.delim);
+  var blob=new Blob([csv],{type:"text/csv;charset=utf-8;"});
+  var url=URL.createObjectURL(blob);
+  var a=document.createElement("a");
+  a.href=url;
+  a.download=(S.fileName||"register.csv").replace(/\.csv$/i,"")+"-updated.csv";
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(function(){ URL.revokeObjectURL(url); },1000);
+  toast(t("downloaded"));
+}
+
+/* ================= suggest ================= */
+var sugIdx=-1;
+function showSuggest(){
+  var list=suggestions($("q").value), box=$("suggest");
+  box.innerHTML=""; sugIdx=-1;
+  if(!list.length){ box.hidden=true; return; }
+  list.forEach(function(label){
+    var b=document.createElement("button");
+    b.type="button"; b.textContent=label;
+    b.addEventListener("mousedown",function(e){
+      e.preventDefault(); $("q").value=label; hideSuggest(); runCheck();
+    });
+    box.appendChild(b);
+  });
+  box.hidden=false;
+}
+function hideSuggest(){ $("suggest").hidden=true; sugIdx=-1; }
+function moveSuggest(dir){
+  var box=$("suggest");
+  if(box.hidden) return false;
+  var items=box.querySelectorAll("button");
+  if(!items.length) return false;
+  sugIdx+=dir;
+  if(sugIdx<0) sugIdx=items.length-1;
+  if(sugIdx>=items.length) sugIdx=0;
+  items.forEach(function(b,i){ b.classList.toggle("active",i===sugIdx); });
+  $("q").value=items[sugIdx].textContent;
+  return true;
+}
+
+/* ================= views ================= */
+var reminderShown=false;
+function setView(v){
+  $("switch").setAttribute("data-view",v);
+  $("switch").querySelectorAll("button").forEach(function(b){
+    b.setAttribute("aria-selected", b.getAttribute("data-view")===v);
+  });
+  $("viewCheck").hidden = v!=="check";
+  $("viewTable").hidden = v!=="table";
+  $("shell").classList.toggle("wide", v==="table");
+  if(v==="table"){
+    renderTable();
+    if(!reminderShown){ reminderShown=true; toast(t("reminder")); }
+    setTimeout(function(){ $("tq").focus(); },40);
+  } else {
+    setTimeout(function(){ $("q").focus(); },40);
+  }
+}
+
+/* ================= wiring ================= */
+$("switch").querySelectorAll("button").forEach(function(b){
+  b.addEventListener("click",function(){ setView(b.getAttribute("data-view")); });
+});
+$("meInput").addEventListener("input",function(e){ S.me=e.target.value.trim().toUpperCase(); });
+$("btnCheck").addEventListener("click",runCheck);
+$("btnAddCheck").addEventListener("click",function(){ showAddForm($("q").value.trim()); });
+$("btnAddTable").addEventListener("click",function(){ showAddForm(""); });
+$("btnDownload").addEventListener("click",download);
+$("btnClearHist").addEventListener("click",function(){ S.history=[]; renderHistory(); });
+$("btnCloseX").addEventListener("click",closeModal);
+$("backdrop").addEventListener("mousedown",function(e){ if(e.target===$("backdrop")) closeModal(); });
+$("btnReplace").addEventListener("click",function(){
+  var fp=$("filepanel");
+  fp.hidden=!fp.hidden;
+  if(!fp.hidden) fp.scrollIntoView({behavior:"smooth",block:"nearest"});
+});
+$("btnCancelUpload").addEventListener("click",function(){ $("filepanel").hidden=true; });
+$("btnPick").addEventListener("click",function(){ $("fileInput").click(); });
+$("fileInput").addEventListener("change",function(e){
+  var f=e.target.files&&e.target.files[0];
+  if(f) readFile(f);
+  e.target.value="";
+});
+$("tq").addEventListener("input",function(e){ S.filter=e.target.value; renderTable(); });
+$("q").addEventListener("input",showSuggest);
+$("q").addEventListener("blur",function(){ setTimeout(hideSuggest,120); });
+$("q").addEventListener("keydown",function(e){
+  if(e.key==="ArrowDown"){ if(moveSuggest(1)) e.preventDefault(); }
+  else if(e.key==="ArrowUp"){ if(moveSuggest(-1)) e.preventDefault(); }
+  else if(e.key==="Enter"){ e.preventDefault(); runCheck(); }
+  else if(e.key==="Escape"){ hideSuggest(); }
+});
+document.addEventListener("keydown",function(e){
+  if(e.key==="Escape"&&!$("backdrop").hidden) closeModal();
+});
+["dragenter","dragover"].forEach(function(ev){
+  document.addEventListener(ev,function(e){
+    e.preventDefault();
+    if($("viewTable").hidden) return;
+    $("filepanel").hidden=false;
+    $("filepanel").classList.add("over");
+  });
+});
+["dragleave","drop"].forEach(function(ev){
+  document.addEventListener(ev,function(e){ e.preventDefault(); $("filepanel").classList.remove("over"); });
+});
+document.addEventListener("drop",function(e){
+  var f=e.dataTransfer&&e.dataTransfer.files&&e.dataTransfer.files[0];
+  if(f) readFile(f);
+});
+$("langBg").addEventListener("click",function(){ lang="bg"; applyLang(); });
+$("langEn").addEventListener("click",function(){ lang="en"; applyLang(); });
+
+/* ================= boot ================= */
+var REGISTER = {"headers":["Позиция","Имейл адрес","Имена (БГ)","Имена (EN)","Канал","Източник (таб)"],"rows":[["Международен шофьор с кат. С","","Атанас Колев","Atanas Kolev","Facebook","Social Media"],["Международен шофьор с кат. С","","Димитър Чаушев","Dimitar Chaushev","Facebook","Social Media"],["Международен шофьор с кат. С","","Мехмед Боилу","Mehmed Boilu","Facebook","Social Media"],["Международен шофьор с кат. С","","Ясен Саров","Yasen Sarov","Facebook","Social Media"],["Международен шофьор с кат. С","","Николай Върбанов","Nikolay Varbanov","Facebook","Social Media"],["Международен шофьор с кат. С","","Цветан Цветанов","Tsvetan Tsvetanov","Facebook","Social Media"],["Международен шофьор с кат. С","","Христо Анастасов","Hristo Anastasov","Facebook","Social Media"],["Международен шофьор с кат. С","","Ростислав Ненов","Rostislav Nenov","Facebook","Social Media"],["Международен шофьор с кат. С","","Ангел Стоянов","Angel Stoyanov","Facebook","Social Media"],["Международен шофьор с кат. С","","Яков Левин","Yakov Levin","Facebook","Social Media"],["Международен шофьор с кат. С","","Добромир Йорданов","Dobromir Yordanov","Facebook","Social Media"],["Международен шофьор с кат. С","","Георги Атанасов Георгиев","Georgi Atanasov Georgiev","Facebook","Social Media"],["Международен шофьор с кат. С","","Октай Зекерие","Oktay Zekerie","Facebook","Social Media"],["Международен шофьор с кат. С","","Камен Метушев","Kamen Metushev","Facebook","Social Media"],["Международен шофьор с кат. С","","Стоян Минев","Stoyan Minev","Facebook","Social Media"],["Международен шофьор с кат. С","","Мехмед Фези","Mehmed Fezi","Facebook","Social Media"],["Международен шофьор с кат. С","","Жоро Друмс","Joro Drums","Facebook","Social Media"],["Международен шофьор с кат. С","","Красимир Тонев (двойка)","Krasimir Tonev (dvoyka)","Facebook","Social Media"],["Международен шофьор с кат. С","","Атанас Илиев","Atanas Iliev","Facebook","Social Media"],["Международен шофьор с кат. С","","Пламен Ченков Георгиев","Plamen Chenkov Georgiev","Facebook","Social Media"],["Международен шофьор с кат. С","","Христо Иванов","Hristo Ivanov","Facebook","Social Media"],["Международен шофьор с кат. С","","Георги Костов","Georgi Kostov","Other","Social Media"],["Международен шофьор с кат. С","","Красимир Иванов","Krasimir Ivanov","Other","Social Media"],["Международен шофьор с кат. С","","Светослав Зафиров","Svetoslav Zafirov","Facebook","Social Media"],["Международен шофьор с кат. С","","Боян Г.","Boyan G.","Facebook","Social Media"],["Международен шофьор с кат. С","","Борислав Иванов","Borislav Ivanov","Facebook","Social Media"],["Международен шофьор с кат. С","","Веселин Тодоров","Veselin Todorov","Facebook","Social Media"],["Международен шофьор с кат. С","","Рачо Йорданов Георгиев","Racho Yordanov Georgiev","Facebook","Social Media"],["Международен шофьор с кат. С","","Лазарин Николчев","Lazarin Nikolchev","Facebook","Social Media"],["Международен шофьор с кат. С","","Тодор Василев","Todor Vasilev","Facebook","Social Media"],["Международен шофьор с кат. С","","С.Т.П.","S.T.P.","Facebook","Social Media"],["Международен шофьор с кат. С","","Денислав Анге","Denislav Ange","Facebook","Social Media"],["Международен шофьор с кат. С","","Любомир Хрисчев","Lyubomir Hrischev","Facebook","Social Media"],["Международен шофьор с кат. С","ispanesavp@gmail.com","Сезгин Насуф","Sezgin Nasuf","","Drivers"],["Международен шофьор с кат. С","stohi.st@gmail.com","Стоян Стоянов","Stoyan Stoyanov","","Drivers"],["Международен шофьор с кат. С","dimitriadis67@abv.bg","Димитър Димитров","Dimitar Dimitrov","","Drivers"],["Международен шофьор с кат. С","niki18ivanov@gmail.com","Ники Иванов","Niki Ivanov","","Drivers"],["Международен шофьор с кат. С","bad_777@abv.bg","Росен Хаджиев","Rosen Hadzhiev","","Drivers"],["Международен шофьор с кат. С","atanasmizinov@gmail.com","Атанас Красимиров Мизинов","Atanas Krasimirov Mizinov","","Drivers"],["Международен шофьор с кат. С","tshombe@abv.bg","Константин Спасов","Konstantin Spasov","","Drivers"],["Международен шофьор с кат. С","kamen_metushev850418@abv.bg","Камен Метушев","Kamen Metushev","","Drivers"],["Международен шофьор с кат. С","speisa75@abv.bg","Ивайло Иванов","Ivaylo Ivanov","","Drivers"],["Международен шофьор с кат. С","boresbek@abv.bg","Борислав Нойков","Borislav Noikov","","Drivers"],["Международен шофьор с кат. С","uzunovtayfun@gmail.com","Антон Узунов","Anton Uzunov","","Drivers"],["Международен шофьор с кат. С","y1dimov@yahoo.com","Йордан Илиев","Yordan Iliev","","Drivers"],["Международен шофьор с кат. С","biserchov707@gmail.com","Бисер Чакъров","Biser Chakarov","","Drivers"],["Международен шофьор с кат. С","bashinkata75@gmail.com","Емил Стоянов","Emil Stoyanov","","Drivers"],["Международен шофьор с кат. С","andreilevski67@gmail.com","Андрей Андреев","Andrey Andreev","","Drivers"],["Международен шофьор с кат. С","niks06254545@gmail.com","Николай Георгиев","Nikolai Georgiev","","Drivers"],["Международен шофьор с кат. С","lazarasenov1980@abv.bg","Лазар Крумов","Lazar Krumov","","Drivers"],["Международен шофьор с кат. С","","Славчо Митрев","Slavcho Mitrev","","Drivers"],["Международен шофьор с кат. С","vzaseva91@gmail.com","Ваня Илиева Бачварова","Vania Ilieva Bachvarova","","Drivers"],["Международен шофьор с кат. С","pavkata7008@abv.bg","Павел Йосифов","Pavel Iosifov","","Drivers"],["Международен шофьор с кат. С","bogidarkostov@gmail.com","Божидар Костов","Bojidar Kostov","","Drivers"],["Международен шофьор с кат. С","yordan.georgiev1170@abv.bg","Йордан Георгиев","Yordan Georgiev","","Drivers"],["Международен шофьор с кат. С","naskotaxi83@gmail.com","Атанас Илиев","Atanas Iliev","","Drivers"],["Международен шофьор с кат. С","kalatadosev@gmail.com","Калоян Досев","Kaloyan Dosev","","Drivers"],["Международен шофьор с кат. С","gocho_petkov@abv.bg","Гочо Петков","Gocho Petkov","","Drivers"],["Международен шофьор с кат. С","y.duylovskiy.brd@gmail.com","Юрий Дуйловский","Yuriy Duylovskiy","","Drivers"],["Международен шофьор с кат. С","bostesta@abv.bg","Борислав Борисов","Borislav Borisov","","Drivers"],["Международен шофьор с кат. С","Inexauto@abv.bg","Евгени Генчев","Evgeni Genchev","","Drivers"],["Международен шофьор с кат. С","ivaylo.kolev7177@gmail.com","Ивайло Колев","Ivaylo Kolev","","Drivers"],["Международен шофьор с кат. С","samirmet98@gmail.com","Самет Русид","Samet Rusid","","Drivers"],["Международен шофьор с кат. С","atanaszlatinov0@gmail.com","Атанас Златинов","Atanas Zlatinov","","Drivers"],["Международен шофьор с кат. С","elit.elit.elit@abv.bg","Асен Ангелов","Asen Angelov","","Drivers"],["Международен шофьор с кат. С","deyan220@abv.bg","Деян Семов","Deyan Semov","","Drivers"],["Международен шофьор с кат. С","vkirev1991@gmail.com","Валентин Кирев","Valentin Kirev","","Drivers"],["Международен шофьор с кат. С","m.yord1997@gmail.com","Митко Боянов","Mitko Boyanov","","Drivers"],["Международен шофьор с кат. С","panche_@abv.bg","Петър Панчев","Petar Panchev","","Drivers"],["Международен шофьор с кат. С","mertinsali677@gmail.com","Мертин Сали","Mertin Sali","","Drivers"],["Международен шофьор с кат. С","valio75av@abv.bg","Валентин Аврамов","Valentin Avramov","","Drivers"],["Международен шофьор с кат. С","ivailo86kostov@gmail.com","Ивайло Костов","Ivailo Kostov","","Drivers"],["Международен шофьор с кат. С","bogidarkostov@gmail.com","Божидар Костов","Bojidar Kostov","","Drivers"],["Международен шофьор с кат. С","pekerdeniz41@gmail.com","Ферди Сюлейман","Ferdi Syuleyman","","Drivers"],["Международен шофьор с кат. С","pplugov90@gmail.com","Павел Плугов","Pavel Plugov","","Drivers"],["Международен шофьор с кат. С","mihailraykov1980@gmail.com","Михаил Райков","Mihail Raykov","","Drivers"],["Международен шофьор с кат. С","lpatsireva@gmail.com","Владислав Пацирев","Vladislav Pacirev","","Drivers"],["Международен шофьор с кат. С","viktor_novakov@abv.bg","Виктор Новаков","Viktor Novakov","","Drivers"],["Международен шофьор с кат. С","a_ali@abv.bg","Али Али","Ali Ali","","Drivers"],["Международен шофьор с кат. С","asd777248@gmail.com","Чингиз","Chingiz","","Drivers"],["Международен шофьор с кат. С","velev2701@gmail.com","Велев Сергей","Velev Sergey","","Drivers"],["Международен шофьор с кат. С","nikolaygavrilov97@gmail.com","Николай Гаврилов","Nikolay Gavrilov","","Drivers"],["Международен шофьор с кат. С","marin.m.nikolov@gmail.com","Марин Николов","Marin Nikolov","","Drivers"],["Международен шофьор с кат. С","rtradebg@gmail.com","Румен Русанов","Rumen Rusanov","","Drivers"],["Международен шофьор с кат. С","tayfun111@abv.bg","Тайфун Узунов Тони","Tayfun Uzunov Tony","","Drivers"],["Международен шофьор с кат. С","stanevnedko78@gmail.com","Недко Станев","Nedko Stanev","","Drivers"],["Международен шофьор с кат. С","lubko99@abv.bg","Любослав","Lyuboslav","","Drivers"],["Международен шофьор с кат. С","daniel.vasilev060470@gmail.com","Даниел Василев","Daniel Vasilev","","Drivers"],["Международен шофьор с кат. С","fuzito91@abv.bg","Фазлъ Сали","Fazla Sali","","Drivers"],["Международен шофьор с кат. С","emil_yyanev@abv.bg","Емил Янев","Emil Yanev","","Drivers"],["Международен шофьор с кат. С","momchil8160@gmail.com","Момчил Топалов","Momchil Topalov","","Drivers"],["Международен шофьор с кат. С","donevdian4@gmail.com","Диян Донев","Diyan Donev","","Drivers"],["Международен шофьор с кат. С","slavisalimov1822@gmail.com","Слави Салимов","Slavi Salimov","","Drivers"],["Международен шофьор с кат. С","iliev5496@gmail.com","Димитър Таня","Dimitar Tanya","","Drivers"],["Международен шофьор с кат. С","nikola.marinov72@gmail.com","Никола Маринов","Nikola Marinov","","Drivers"],["Международен шофьор с кат. С","boqnzafirov9@gmail.com","Боян Боби","Boyan Bobi","","Drivers"],["Международен шофьор с кат. С","nihat197236@hotmail.com","Толга Мехмедемин","Tolga Mehmedemin","","Drivers"],["Международен шофьор с кат. С","pamela98@abv.bg","Стоян Йолов","Stoian Yolov","","Drivers"],["Международен шофьор с кат. С","enogeorgiev67@gmail.com","Еньо Георгиев","Enyo Georgiev","","Drivers"],["Международен шофьор с кат. С","genadigt79@abv.bg","Генади Тодоров","Genadi Todorov","","Drivers"],["Международен шофьор с кат. С","elvisplamenov@gmail.com","Пламен Емилов Радославов","Plamen Emilov Radoslavov","","Drivers"],["Международен шофьор с кат. С","cosmos1990@abv.bg","Габриел Георгиев","Gabriel Georgiev","","Drivers"],["Международен шофьор с кат. С","veselin4o1980@abv.bg","Веселин Василев","Veselin Vasilev","","Drivers"],["Международен шофьор с кат. С","angeliovcheviovchev@gmail.com","Ангел Йовчев Геров","Angel Yovchev Gerov","","Drivers"],["Международен шофьор с кат. С","yusmenayvaz0@gmail.com","Юсмен Айваз","Yusmen Ayvaz","","Drivers"],["Международен шофьор с кат. С","pekerdeniz41@gmail.com","Ферди Сюлейман","Ferdi Syuleyman","","Drivers"],["Международен шофьор с кат. С","rmsuharev3@gmail.com","Радослав Сухарев","Radoslav Suharev","","Drivers"],["Международен шофьор с кат. С","kristianslavov921@gmail.com","Кристиян Славов","Kristiyan Slavov","","Drivers"],["Международен шофьор с кат. С","kiriltodorov644@gmail.com","Кирил Тодоров","Kiril Todorov","","Drivers"],["Международен шофьор с кат. С","atraqn259@gmail.com","Траян Асенов","Trajan Assenow","","Drivers"],["Международен шофьор с кат. С","bmw1976@abv.bg","Радомир","Radomir","","Drivers"],["Международен шофьор с кат. С","dragomir770925@gmail.com","Драгомир Илков","Dragomir Ilkov","","Drivers"],["Международен шофьор с кат. С","radoslavraychev027@gmail.com","Асен Райчев","Asen Raychev","","Drivers"],["Международен шофьор с кат. С","angelkrstanov0@gmail.com","Ангел Кръстанов","Angel Krastanov","","Drivers"],["Международен шофьор с кат. С","ivaniliev595@gmail.com","Иван Илиев","Ivan Iliev","","Drivers"],["Международен шофьор с кат. С","ivailo231185@gmail.com","Ивайло Стефанов","Ivailo Stefanov","","Drivers"],["Международен шофьор с кат. С","marin.m.nikolov@gmail.com","Марин Николов","Marin Nikolov","","Drivers"],["Международен шофьор с кат. С","i.markov@abv.bg","Иван Любомиров Марков","Ivan Lyubomirov Markov","","Drivers"],["Международен шофьор с кат. С","stoilyordanov6@gmail.com","Стоил Йорданов Мирчев","Stoil Yordanov Mirchev","","Drivers"],["Международен шофьор с кат. С","hristo19733@abv.bg","Христо Христов","Hristo Hristov","","Drivers"],["Международен шофьор с кат. С","stoqankaradjov14@gmail.com","Стоян Караджов","Stoyan Karadzhov","","Drivers"],["Международен шофьор с кат. С","borisovelenko86@gmail.com","Еленко Борисов","Elenko Borisov","","Drivers"],["Международен шофьор с кат. С","roska0669@gmail.com","Самир Узел","Samir Uzel","","Drivers"],["Международен шофьор с кат. С","iskohasan@abv.bg","Слави Тодоров","Slavi Todorov","","Drivers"],["Международен шофьор с кат. С","borislav8481@gmail.com","Борислав Коджебашев","Borislav Kodjebashev","","Drivers"],["Международен шофьор с кат. С","georgievemil202@gmail.com","Емил Георгиев","Emil Georgiev","","Drivers"],["Международен шофьор с кат. С","mario.krasimirov.krastev@abv.bg","Марио Кръстев","Mario Krastev","","Drivers"],["Международен шофьор с кат. С","piton4etoo@abv.bg","Господин Асенов","Gospodin Asenov","","Drivers"],["Международен шофьор с кат. С","asenangelov482@gmail.com","Асен Ангелов","Asen Angelov","","Drivers"],["Международен шофьор с кат. С","kocetokandilarov85@abv.bg","Костадин Кандиларов","Kostadin Kandilarov","","Drivers"],["Международен шофьор с кат. С","stoqnkolev6@gmail.com","Стоян Колев","Stoyan Kolev","","Drivers"],["Международен шофьор с кат. С","boisovtotorov@gmail.com","Красимир Тодоров","Krasimir Todorov","","Drivers"],["Международен шофьор с кат. С","dimitardimitrov2973@gmail.com","Димитър Димитров","Dimitar Dimitrov","","Drivers"],["Международен шофьор с кат. С","salievaemina441@gmail.com","Еминя","Eminya","","Drivers"],["Международен шофьор с кат. С","zlatkokostadinov669@gmail.com","Златко Костадинов","Zlatko Kostadinov","","Drivers"],["Международен шофьор с кат. С","ahmetsuleyman569@gmail.com","Ахмед Ахмед","Ahmed Ahmed","","Drivers"],["Международен шофьор с кат. С","doniyorshamsuddinov19760304@gmail.com","Дониор Шамсудинов","Doniyor Shamsuddinov","","Drivers"],["Международен шофьор с кат. С","nikolaymarinov@abv.bg","Николай Маринов","Nikolay Marinov","","Drivers"],["Международен шофьор с кат. С","petartomchev@abv.bg","Петър Томчев","Petar Tomchev","","Drivers"],["Международен шофьор с кат. С","ggifto79@gmail.com","Асен Дяков","Asen Dyakov","","Drivers"],["Международен шофьор с кат. С","lazovsaso96@gmail.com","Сашо Лазов","Sasho Lazov","","Drivers"],["Международен шофьор с кат. С","liusimi4ov@gmail.com","Лудмил Драгойчев","Ludmil Dragoichev","","Drivers"],["Международен шофьор с кат. С","petkoparushev71@gmail.com","Петко Паручев","Petko Paruchev","","Drivers"],["Международен шофьор с кат. С","lafd@mail.bg","Люсиен","Lyusien","","Drivers"],["Международен шофьор с кат. С","rushenmyumyun421@gmail.com","Рушен Расимов","Rushen Rasimov","","Drivers"],["Международен шофьор с кат. С","mi7o_pit_bull@abv.bg","Димитър Георгиев","Dimitar Georgiev","","Drivers"],["Международен шофьор с кат. С","mehmedmehmedovghs@gmail.com","Мехмед Мехмедов Шукриев","Mehmed Mehmedov Shukriev","","Drivers"],["Международен шофьор с кат. С","rosenzekov9@gmail.com","Росен Жеков","Rosen Zhekov","","Drivers"],["Международен шофьор с кат. С","iavramov1971@gmail.com","Иван Аврамов","Ivan Avramov","","Drivers"],["Международен шофьор с кат. С","ivanovvangel494@gmail.com","Вангел Иванов","Vangel Ivanov","","Drivers"],["Международен шофьор с кат. С","v734911@gmail.com","Веселин Валев","Veselin Valev","","Drivers"],["Международен шофьор с кат. С","kiril.enev@abv.bg","Кирил Енев","Kiril Enev","","Drivers"],["Международен шофьор с кат. С","angel_tsarski.ltd@abv.bg","Ангел","Angel","","Drivers"],["Международен шофьор с кат. С","8709298468b@gmail.com","Краси Динев","Krasi Dinev","","Drivers"],["Международен шофьор с кат. С","peveca.nikolov@mail.bg","Исак Николов","Isak Nikolov","","Drivers"],["Международен шофьор с кат. С","shells@abv.bg","Илия Благоев","Iliya Blagoev","","Drivers"],["Международен шофьор с кат. С","dimitaratanasov777@gmail.com","Димитър Атанасов","Dimitar Atanasov","","Drivers"],["Международен шофьор с кат. С","mihaelmihajlov745@gmail.com","Михаел Михайлов","Mihael Mihaylov","","Drivers"],["Международен шофьор с кат. С","svetkata1976@gmail.com","Светослав Зафиров","Svetoslav Zafirov","","Drivers"],["Международен шофьор с кат. С + Е","dinkotruhchev18@gmail.com","Динко Трухчев","Dinko Truhchev","","Drivers"],["Международен шофьор с кат. С","plamenshko@gmail.com","Пламен Шкодров","Plamen Shkodrov","","Drivers"],["Международен шофьор с кат. С","balevhristo@abv.bg","Христо Балев","Hristo Balev","","Drivers"],["Международен шофьор с кат. С","nachev2934@gmail.com","Атанас Начев","Atanas Nachev","","Drivers"],["Международен шофьор с кат. С + Е","petar92slavchev@gmail.com","Петър Славчев","Petur Slavchev","","Drivers"],["Международен шофьор с кат. С","atanas_19811980@abv.bg","Атанас Атанасов","Atanas Atanasov","","Drivers"],["Международен шофьор с кат. С","mahkambek_2211@icloud.com","Зубайр Турсунов","Zubayr Tursunov","","Drivers"],["Международен шофьор с кат. С + Е","lachezar0987.kamenov@abv.bg","Лъчезар Каменов","Lachezar Kamenov","","Drivers"],["Шофьори кат. C и C+E","simeonovbgt@gmail.com","Цветослав Симеонов","Tzvetoslav Simeonov","","Drivers"],["Международен шофьор с кат. С","onurito@abv.bg","Онур Касулу","Onur Kasoolu","","Drivers"],["Международен шофьор с кат. С","deyan220@abv.bg","Деян Семов","Deyan Semov","","Drivers"],["Международен шофьор с кат. С","miroslavgospodinov710920@gmail.com","Мирослав Марков","Miroslav Markov","","Drivers"],["Международен шофьор с кат. С","yenilmez.balkancho@gmail.com","Изет Йълдъзхан","Izet Yildizhan","","Drivers"],["Международен шофьор с кат. С","tihomirmetoduev73@gmail.com","Роберто Карлос","Roberto Karlos","","Drivers"],["Международен шофьор с кат. С","georgikdoikov@gmail.com","Георги Дойков","Georgi Doikov","","Drivers"],["Международен шофьор с кат. С","melevps@gmail.com","Панко Мелев","Panko Melev","","Drivers"],["Международен шофьор с кат. С","iliqniliev973@gmail.com","Илиян Илиев","Iliyan Iliev","","Drivers"],["Международен шофьор с кат. С","edisahmed89@abv.bg","Едис Вели Ахмед","Edis Veli Ahmed","","Drivers"],["Международен шофьор с кат. С","petrg677@gmail.com","Петър Георгиев","Petar Georgiev","","Drivers"],["ГЛОРИЪР ООД","velizar.nikolaev30@gmail.com","Вил Николаев","Vill Nikolaev","","Drivers"],["Шофьори кат. С","solijon77uz@gmail.com","Солижон Абдулаев","Solijon Abdullaev","","Drivers"],["Шофьори кат. С","surmaivan8@gmail.com","Иван Сурма","Ivan Surma","","Drivers"],["Шофьори кат. С","tekila70@abv.bg","Веселин Сашев","Veselin Sashev","","Drivers"],["Шофьори кат. С","hasanahmed4701@icloud.com","Хасан Ахмед","Hasan Ahmed","","Drivers"],["Шофьори кат. С","antani1976@abv.bg","Антани Димитров","Antani Dimitrov","","Drivers"],["Шофьори кат. С","ivelinkamenov38@gmail.com","Ивелин Каменов","Ivelin Kamenov","","Drivers"],["Шофьори кат. С","lpatsireva@gmail.com","Владислав Пацирев","Vladislav Pacirev","","Drivers"],["Шофьори кат. С","vasilkirkov1961@abv.bg","Васил Кирков","Vasil Kirkov","","Drivers"],["Шофьори кат. С","penew.ivo@gmail.com","Иво Пенев","Ivo Penev","","Drivers"],["Шофьори кат. С","kriskostov66@gmail.com","Красимир Костов","Krasimir Kostov","","Drivers"],["Шофьори кат. С","kocestoyanov042@gmail.com","Коце Стоянов","Kotse Stoyanov","","Drivers"],["Шофьори кат. С","lazar_31@mail.bg","Лазар Антонов","Lazar Antonov","","Drivers"],["Шофьори кат. С","rumenm878@gmail.com","Румен Христов","Rumen Hristov","","Drivers"],["Шофьори кат. С","y1dimov@yahoo.com","Йордан Илиев","Yordan Iliev","","Drivers"],["Шофьори кат. С","icloud.22840@icloud.com","Мартин Жеков","Martin Jekov","","Drivers"],["Международен шофьор с кат. С","gkostov11@gmail.com","Георги Костов","Georgi Kostov","","Drivers"],["Международен шофьор с кат. С","toma_bmw@abv.bg","Тома Томов","Toma Tomov","","Drivers"],["Международен шофьор с кат. С","ros_iliev@abv.bg","Роси Илиев","Rosi Iliev","","Drivers"],["Международен шофьор с кат. С","cvetomirpaynov95@gmail.com","Цветомир Паунов","Tsvetomir Paunov","","Drivers"],["Международен шофьор с кат. С","hrstptrv@gmail.com","Христо Петров","Hristo Petrov","","Drivers"],["Международен шофьор с кат. С","mudinval77@gmail.com","Красимир Кръстев","Krasimir Krastev","","Drivers"]]};
+
+loadRows([REGISTER.headers].concat(REGISTER.rows),
+  "Глориър — Обединен списък кандидати", ",");
+applyLang();
+setView("check");
+})();
+</script>
+</body>
+</html>
