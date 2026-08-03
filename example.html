@@ -405,8 +405,9 @@ td.name{color:var(--ink);font-weight:600}
 
 <div class="toast" id="toast" hidden></div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script>
-(function(){
+(async function(){
 "use strict";
 
 /* ================= i18n ================= */
@@ -421,7 +422,7 @@ var T = {
     recent:"Последни проверки", clear:"Изчисти",
     download:"Изтегли CSV", replace:"Нов файл", pick:"Избери CSV файл", cancel:"Отказ",
     fpTitle:"Зареди нов CSV файл",
-    fpText:"Пусни файла тук или го избери. Заменя текущия списък само в този браузър.",
+    fpText:"Пусни файла тук или го избери. Заменя текущия списък за всички, които ползват това приложение.",
     filterPh:"Филтрирай…", searchPh:"Атанас Колев",
     noMatch:"Няма съвпадения по този филтър.",
     approved:"Проверката е одобрена", notfound:"Човекът не съществува",
@@ -430,14 +431,16 @@ var T = {
     notInRegister:"Няма такъв запис в заредения списък.",
     multi:"Записан е {n} пъти в списъка.", entry:"Запис",
     close:"Затвори", addTitle:"Нов запис",
-    addNote:"Попълни полетата и запиши. Записът влиза в списъка веднага, а после изтегли обновения CSV.",
+    addNote:"Попълни полетата и запиши. Записът се съхранява веднага в общата база.",
     save:"Запиши", required:"задължително",
     fillName:"Попълни името.",
     dupe:"Вече има запис с това име. Натисни Запиши пак, за да добавиш втори.",
     didYouMean:"Може би имаш предвид:",
-    added:"Записът е добавен. Не забравяй да изтеглиш обновения CSV.",
+    added:"Записът е добавен и запазен.",
     downloaded:"Файлът е изтеглен.",
-    loadedFile:"Зареден файл: ",
+    loadedFile:"Зареден файл: ", loading:"Зареждане…",
+    loadFailed:"Неуспешно зареждане от базата данни. Провери връзката с интернет.",
+    saveFailed:"Записът не бе съхранен онлайн. Провери връзката с интернет.",
     notes:"Бележки", notePh:"Напиши бележка…", addNoteBtn:"Добави",
     noNotes:"Още няма бележки.",
     whoAreYou:"Напиши инициалите си горе вдясно, за да се знае кой пише бележката.",
@@ -447,7 +450,7 @@ var T = {
     fieldsSaved:"Промените са запазени в списъка.",
     all:"Всички", records:"записа", withNotes:"с бележки", shown:"показани",
     empty:"празно", bad:"Файлът не може да се прочете като CSV.", noCols:"Файлът няма колони.",
-    reminder:"Бележките и статусите живеят само в този раздел. Изтегли CSV, за да ги запазиш."
+    reminder:"Бележките и статусите се запазват автоматично в общата база — виждат се от всички."
   },
   en:{
     brandsub:"Candidate list", youAre:"You are:",
@@ -459,7 +462,7 @@ var T = {
     recent:"Recent checks", clear:"Clear",
     download:"Download CSV", replace:"New file", pick:"Choose CSV file", cancel:"Cancel",
     fpTitle:"Load a new CSV file",
-    fpText:"Drop the file here or pick it. Replaces the current list in this browser only.",
+    fpText:"Drop the file here or pick it. Replaces the current list for everyone using this app.",
     filterPh:"Filter…", searchPh:"Atanas Kolev",
     noMatch:"No rows match this filter.",
     approved:"Check approved", notfound:"Person doesn't exist",
@@ -468,14 +471,16 @@ var T = {
     notInRegister:"No such record in the loaded list.",
     multi:"Listed {n} times in the register.", entry:"Entry",
     close:"Close", addTitle:"New record",
-    addNote:"Fill the fields and save. The record joins the list right away — then download the updated CSV.",
+    addNote:"Fill the fields and save. The record is saved immediately to the shared database.",
     save:"Save", required:"required",
     fillName:"Enter the name.",
     dupe:"A record with this name already exists. Press Save again to add a second one.",
     didYouMean:"Did you mean:",
-    added:"Record added. Remember to download the updated CSV.",
+    added:"Record added and saved.",
     downloaded:"File downloaded.",
-    loadedFile:"Loaded file: ",
+    loadedFile:"Loaded file: ", loading:"Loading…",
+    loadFailed:"Couldn't load from the database. Check your internet connection.",
+    saveFailed:"Save failed — check your internet connection.",
     notes:"Notes", notePh:"Write a note…", addNoteBtn:"Add",
     noNotes:"No notes yet.",
     whoAreYou:"Enter your initials top right so the note is signed.",
@@ -485,7 +490,7 @@ var T = {
     fieldsSaved:"Changes saved to the list.",
     all:"All", records:"records", withNotes:"with notes", shown:"shown",
     empty:"empty", bad:"This file can't be read as CSV.", noCols:"The file has no columns.",
-    reminder:"Notes and statuses live in this tab only. Download the CSV to keep them."
+    reminder:"Notes and statuses save automatically to the shared database — visible to everyone."
   }
 };
 var lang="bg";
@@ -593,23 +598,45 @@ function toCSV(headers,records,delim){
 var S={ headers:[], records:[], nameCols:[], notesCol:"", statusCol:"", hidden:{},
         delim:",", fileName:"", history:[], sort:{col:"",dir:1}, filter:"", facetVals:{}, me:"" };
 
-/* ================= persistence (localStorage) ================= */
-var STORAGE_KEY="checkPeopleHR.example.v1";
-var persistTimer=null;
-function persistNow(){
-  try{
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({
-      headers:S.headers, records:S.records, nameCols:S.nameCols,
-      notesCol:S.notesCol, statusCol:S.statusCol, delim:S.delim, fileName:S.fileName
-    }));
-  }catch(e){ /* storage full/unavailable — in-memory state still works */ }
+/* ================= persistence (Supabase) ================= */
+var SUPABASE_URL="<<SUPABASE_PROJECT_URL>>";
+var SUPABASE_ANON_KEY="<<SUPABASE_ANON_KEY>>";
+var sb=window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+async function fetchDataset(){
+  var metaRes=await sb.from('dataset_meta').select('*').eq('id',1).maybeSingle();
+  if(metaRes.error) throw metaRes.error;
+  if(!metaRes.data) return null;
+  var peopleRes=await sb.from('people').select('id,data').order('created_at',{ascending:true});
+  if(peopleRes.error) throw peopleRes.error;
+  var records=peopleRes.data.map(function(row){ var r=Object.assign({},row.data); r.__id=row.id; return r; });
+  return { headers:metaRes.data.headers, nameCols:metaRes.data.name_cols, notesCol:metaRes.data.notes_col,
+           statusCol:metaRes.data.status_col, delim:metaRes.data.delim||",", fileName:metaRes.data.file_name||"",
+           records:records };
 }
-function persist(){ clearTimeout(persistTimer); persistTimer=setTimeout(persistNow,250); }
-function loadPersisted(){
+
+async function resyncDataset(){
   try{
-    var raw=localStorage.getItem(STORAGE_KEY);
-    return raw?JSON.parse(raw):null;
-  }catch(e){ return null; }
+    await sb.from('people').delete().neq('id','00000000-0000-0000-0000-000000000000');
+    var rows=S.records.map(function(r){ var copy={}; S.headers.forEach(function(h){ copy[h]=r[h]; }); return {data:copy}; });
+    if(rows.length){
+      var ins=await sb.from('people').insert(rows).select('id');
+      if(!ins.error) ins.data.forEach(function(row,i){ S.records[i].__id=row.id; });
+    }
+    await sb.from('dataset_meta').upsert({ id:1, headers:S.headers, name_cols:S.nameCols, notes_col:S.notesCol,
+      status_col:S.statusCol, delim:S.delim, file_name:S.fileName });
+  }catch(e){ toast(t("saveFailed")); }
+}
+
+var updateTimers={};
+function updatePerson(rec){
+  if(!rec.__id) return;
+  clearTimeout(updateTimers[rec.__id]);
+  updateTimers[rec.__id]=setTimeout(function(){
+    sb.from('people').update({data:rec}).eq('id',rec.__id).then(function(res){
+      if(res.error) toast(t("saveFailed"));
+    });
+  },250);
 }
 
 var NAME_HINTS=["име","имена","name","person","служител","employee","шофьор","driver","лице"];
@@ -666,7 +693,7 @@ function loadRows(rows,fileName,delim){
   $("fpMeta").textContent=t("loadedFile")+fileName;
   $("filepanel").hidden=true;
   renderColChips(); renderVisChips(); renderFacets(); renderTable(); renderHistory();
-  persist();
+  resyncDataset();
 }
 
 /* ================= record helpers ================= */
@@ -1013,7 +1040,7 @@ function buildRecordCard(rec,index,total){
   });
   ssel.addEventListener("change",function(){
     rec[S.statusCol]=ssel.value;
-    persist();
+    updatePerson(rec);
     renderTable(); toast(t("statusSaved"));
   });
   srow.appendChild(slab); srow.appendChild(ssel);
@@ -1032,7 +1059,7 @@ function buildRecordCard(rec,index,total){
       if(editing){
         var inp=document.createElement("input");
         inp.type="text"; inp.value=v;
-        inp.addEventListener("input",function(){ rec[h]=inp.value; persist(); });
+        inp.addEventListener("input",function(){ rec[h]=inp.value; updatePerson(rec); });
         dd.appendChild(inp);
       } else if(v){ dd.textContent=v; }
       else { dd.textContent=t("empty"); dd.className="empty"; }
@@ -1074,7 +1101,7 @@ function buildRecordCard(rec,index,total){
         var cur=parseNotes(rec);
         cur.splice(i,1);
         writeNotes(rec,cur);
-        persist();
+        updatePerson(rec);
         renderLog(); renderTable();
       });
       li.appendChild(del);
@@ -1090,7 +1117,7 @@ function buildRecordCard(rec,index,total){
     if(!txt) { ta.focus(); return; }
     if(!S.me){ toast(t("whoAreYou")); $("meInput").focus(); return; }
     addNote(rec,txt);
-    persist();
+    updatePerson(rec);
     ta.value="";
     renderLog(); renderTable();
     toast(t("noteAdded"));
@@ -1216,13 +1243,16 @@ function showAddForm(prefill){
     });
     var firstNote=inputs[S.notesCol].value.trim();
     if(firstNote) addNote(rec,firstNote);
-    S.records.push(rec);
-    persist();
-    closeModal();
-    $("q").value="";
-    pushHistory(name,true);
-    renderFacets(); renderTable();
-    toast(t("added"));
+    sb.from('people').insert({data:rec}).select('id').single().then(function(res){
+      if(res.error){ toast(t("saveFailed")); return; }
+      rec.__id=res.data.id;
+      S.records.push(rec);
+      closeModal();
+      $("q").value="";
+      pushHistory(name,true);
+      renderFacets(); renderTable();
+      toast(t("added"));
+    });
   }));
 
   openModal();
@@ -1403,11 +1433,13 @@ $("langEn").addEventListener("click",function(){ lang="en"; applyLang(); });
 /* ================= boot ================= */
 var REGISTER = {"headers":["Позиция","Имейл адрес","Имена (БГ)","Имена (EN)","Канал","Източник (таб)","Статус","Бележки"],"rows":[["Международен шофьор с кат. С","ivan.primer@example.com","Иван Примеров","Ivan Primerov","Facebook","Social Media","Нов","[01.07.2026 · ВД] Звъннах, чака отговор."],["Международен шофьор с кат. С","","Мария Тестова","Maria Testova","Facebook","Social Media","Свързахме се",""],["Шофьори кат. С","georgi.demo@example.com","Георги Демов","Georgi Demov","","Drivers","Интервю","[02.07.2026 · МГ] Насрочено интервю за петък."],["Международен шофьор с кат. С + Е","elena.demo@example.com","Елена Иванова","Elena Ivanova","Other","Drivers","Одобрен",""],["Шофьори кат. С","","Николай Образцов","Nikolay Obraztsov","","Drivers","Отказан","[03.07.2026 · ВД] Няма ADR, отпада засега."]]};
 
-var saved=loadPersisted();
-if(saved && saved.records && saved.records.length){
-  S.headers=saved.headers; S.records=saved.records; S.nameCols=saved.nameCols;
-  S.notesCol=saved.notesCol; S.statusCol=saved.statusCol;
-  S.delim=saved.delim||","; S.fileName=saved.fileName||"";
+$("fpMeta").textContent=t("loading");
+var remote=null;
+try{ remote=await fetchDataset(); }catch(e){ toast(t("loadFailed")); }
+if(remote && remote.records && remote.records.length){
+  S.headers=remote.headers; S.records=remote.records; S.nameCols=remote.nameCols;
+  S.notesCol=remote.notesCol; S.statusCol=remote.statusCol;
+  S.delim=remote.delim||","; S.fileName=remote.fileName||"";
   S.history=[]; S.sort={col:"",dir:1}; S.filter=""; S.facetVals={}; S.hidden={};
   $("fpMeta").textContent=t("loadedFile")+S.fileName;
   renderColChips(); renderVisChips(); renderFacets(); renderTable(); renderHistory();
