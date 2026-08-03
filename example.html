@@ -39,6 +39,10 @@ input,select,textarea{font-family:inherit}
 .brand-sub{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);
   letter-spacing:.08em;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .topright{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.pplcount{display:flex;align-items:center;gap:5px;background:var(--card);border:1px solid var(--line);
+  border-radius:999px;padding:6px 14px;font-family:'JetBrains Mono',monospace;font-size:12px;
+  font-weight:600;color:var(--ink);white-space:nowrap}
+.pplcount .n{color:var(--accent)}
 .me{display:flex;align-items:center;gap:7px;background:var(--card);border:1px solid var(--line);
   border-radius:999px;padding:4px 6px 4px 13px}
 .me label{font-size:12px;color:var(--muted);white-space:nowrap}
@@ -68,6 +72,8 @@ input,select,textarea{font-family:inherit}
 .btn-accent:hover{background:#0A616E;color:#fff}
 .btn-ghost{border-color:transparent;background:transparent;color:var(--muted)}
 .btn-ghost:hover{color:var(--ink);border-color:var(--line)}
+.btn-danger{color:#B4232C}
+.btn-danger:hover{color:#B4232C;border-color:#B4232C}
 .btn-sm{padding:6px 11px;font-size:12.5px}
 
 .desk{text-align:center}
@@ -188,6 +194,7 @@ td.name{color:var(--ink);font-weight:600}
 
 .reccard + .reccard{margin-top:22px;padding-top:20px;border-top:2px solid var(--line-soft)}
 .rec-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
+.rec-actions{display:flex;align-items:center;gap:6px}
 .rec-tag{margin:0;padding:4px 9px;background:var(--paper);border-radius:6px;display:inline-block}
 .statusrow{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px}
 .statusrow label{font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.1em;
@@ -302,6 +309,7 @@ td.name{color:var(--ink);font-weight:600}
       <span class="brand-sub" data-t="brandsub">Списък кандидати</span>
     </div>
     <div class="topright">
+      <div class="pplcount" id="pplCount" aria-live="polite"><span class="n" id="pplCountN">—</span> <span id="pplCountLabel">в базата</span></div>
       <div class="me">
         <label for="meInput" data-t="youAre">Ти си:</label>
         <input type="text" id="meInput" maxlength="6" placeholder="ВД" aria-label="Initials">
@@ -447,7 +455,10 @@ var T = {
     fieldsSaved:"Промените са запазени в списъка.",
     all:"Всички", records:"записа", withNotes:"с бележки", shown:"показани",
     empty:"празно", bad:"Файлът не може да се прочете като CSV.", noCols:"Файлът няма колони.",
-    reminder:"Бележките и статусите живеят само в този раздел. Изтегли CSV, за да ги запазиш."
+    reminder:"Бележките и статусите живеят само в този раздел. Изтегли CSV, за да ги запазиш.",
+    peopleCount:"в базата",
+    deletePerson:"Изтрий", deleteConfirm:"Сигурни ли сте, че искате да изтриете {name} от списъка? Това не може да се отмени.",
+    deleted:"Записът е изтрит."
   },
   en:{
     brandsub:"Candidate list", youAre:"You are:",
@@ -485,7 +496,10 @@ var T = {
     fieldsSaved:"Changes saved to the list.",
     all:"All", records:"records", withNotes:"with notes", shown:"shown",
     empty:"empty", bad:"This file can't be read as CSV.", noCols:"The file has no columns.",
-    reminder:"Notes and statuses live in this tab only. Download the CSV to keep them."
+    reminder:"Notes and statuses live in this tab only. Download the CSV to keep them.",
+    peopleCount:"in the database",
+    deletePerson:"Delete", deleteConfirm:"Are you sure you want to delete {name} from the list? This can't be undone.",
+    deleted:"Record deleted."
   }
 };
 var lang="bg";
@@ -890,6 +904,22 @@ function colWidth(h){
   return "auto";
 }
 
+function updatePeopleCount(){
+  var el=$("pplCountN"), lb=$("pplCountLabel");
+  if(el) el.textContent=S.records.length;
+  if(lb) lb.textContent=t("peopleCount");
+}
+
+function deleteRecord(rec){
+  var i=S.records.indexOf(rec);
+  if(i<0) return;
+  if(!window.confirm(t("deleteConfirm").replace("{name}",nameOf(rec)||"—"))) return;
+  S.records.splice(i,1);
+  closeModal();
+  renderFacets(); renderTable();
+  toast(t("deleted"));
+}
+
 function renderTable(){
   var thead=$("thead"), tbody=$("tbody"), cg=$("colgroup");
   if(!thead) return;
@@ -994,6 +1024,7 @@ function renderTable(){
     ? S.records.length+" "+t("records")
     : rows.length+" / "+S.records.length+" "+t("shown");
   $("tNotes").textContent = withNotes+" "+t("withNotes");
+  updatePeopleCount();
 }
 
 /* ================= modal ================= */
@@ -1033,7 +1064,11 @@ function buildRecordCard(rec,index,total){
     renderFields();
     if(!editing){ renderTable(); toast(t("fieldsSaved")); }
   });
-  head.appendChild(editBtn);
+  var actions=document.createElement("div"); actions.className="rec-actions";
+  actions.appendChild(editBtn);
+  var delBtn=mkBtn(t("deletePerson"),"btn btn-ghost btn-sm btn-danger",function(){ deleteRecord(rec); });
+  actions.appendChild(delBtn);
+  head.appendChild(actions);
   card.appendChild(head);
 
   /* status */
