@@ -421,9 +421,15 @@ td.name{color:var(--ink);font-weight:600}
 
 <div class="toast" id="toast" hidden></div>
 
+<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 <script>
 (function(){
 "use strict";
+
+/* ================= supabase ================= */
+var SUPABASE_URL="https://tfjupfgzbjwqftnyhjko.supabase.co";
+var SUPABASE_ANON_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRmanVwZmd6Ymp3cWZ0bnloamtvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY1ODg3MzEsImV4cCI6MjA5MjE2NDczMX0.poI5ix8UF_skb6ViYO-NGq1SgKcIwmTKbc-eSq4ZpQg";
+var sb = (typeof supabase!=="undefined") ? supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
 
 /* ================= i18n ================= */
 var T = {
@@ -466,7 +472,11 @@ var T = {
     reminder:"Бележките и статусите живеят само в този раздел. Изтегли CSV, за да ги запазиш.",
     peopleCount:"в базата",
     deletePerson:"Изтрий", deleteConfirm:"Сигурни ли сте, че искате да изтриете {name} от списъка? Това не може да се отмени.",
-    deleted:"Записът е изтрит."
+    deleted:"Записът е изтрит.",
+    saveError:"Грешка при запис — провери връзката. Промяната може да не се е запазила.",
+    offlineFallback:"Няма връзка със споделената база. Показва се локално копие — промените няма да се запазят.",
+    replaceConfirm:"Това ще замени споделения списък за целия екип с новия файл. Продължи?",
+    seedError:"Грешка при първоначалното качване в базата — промените засега остават само локални."
   },
   en:{
     brandsub:"Candidate list", youAre:"You are:",
@@ -507,7 +517,11 @@ var T = {
     reminder:"Notes and statuses live in this tab only. Download the CSV to keep them.",
     peopleCount:"in the database",
     deletePerson:"Delete", deleteConfirm:"Are you sure you want to delete {name} from the list? This can't be undone.",
-    deleted:"Record deleted."
+    deleted:"Record deleted.",
+    saveError:"Save failed — check your connection. The change may not have been saved.",
+    offlineFallback:"Couldn't reach the shared database. Showing a local copy — changes won't be saved.",
+    replaceConfirm:"This will replace the shared list for the whole team with the new file. Continue?",
+    seedError:"Couldn't upload the initial data to the database — changes will stay local for now."
   }
 };
 var lang="bg";
@@ -687,6 +701,65 @@ function findCol(headers,hints){
     if(hints.some(function(n){ return l.indexOf(n)>-1; })) return headers[i];
   }
   return "";
+}
+
+/* ================= supabase sync ================= */
+function recData(rec){
+  var o={}; S.headers.forEach(function(h){ o[h]=rec[h]||""; }); return o;
+}
+function savePerson(rec){
+  if(!sb||!rec.__id) return;
+  sb.from("people").update({data:recData(rec), updated_at:new Date().toISOString()}).eq("id", rec.__id)
+    .then(function(res){ if(res.error) toast(t("saveError")); });
+}
+function deletePersonRemote(rec){
+  if(!sb||!rec.__id) return;
+  sb.from("people").delete().eq("id", rec.__id).then(function(res){ if(res.error) toast(t("saveError")); });
+}
+function datasetMetaPayload(){
+  return { id:1, headers:S.headers, name_cols:S.nameCols, notes_col:S.notesCol,
+    status_col:S.statusCol, delim:S.delim, file_name:S.fileName, updated_at:new Date().toISOString() };
+}
+function seedSupabase(){
+  if(!sb) return;
+  sb.from("people").insert(S.records.map(recData)).select().then(function(res){
+    if(res.error){ toast(t("seedError")); return; }
+    res.data.forEach(function(row,i){ if(S.records[i]) S.records[i].__id=row.id; });
+  });
+  sb.from("dataset_meta").upsert(datasetMetaPayload()).then(function(res){
+    if(res.error) toast(t("seedError"));
+  });
+}
+function bootFallback(){
+  loadRows([REGISTER.headers].concat(REGISTER.rows), "Глориър — Обединен списък кандидати", ",");
+}
+function boot(){
+  if(!sb){ bootFallback(); return; }
+  Promise.all([
+    sb.from("dataset_meta").select("*").eq("id",1).maybeSingle(),
+    sb.from("people").select("*")
+  ]).then(function(results){
+    var metaRes=results[0], peopleRes=results[1];
+    if(metaRes.error || peopleRes.error) throw (metaRes.error||peopleRes.error);
+    if(metaRes.data){
+      S.headers=metaRes.data.headers; S.nameCols=metaRes.data.name_cols;
+      S.notesCol=metaRes.data.notes_col; S.statusCol=metaRes.data.status_col;
+      S.sourceCol=findCol(S.headers,SOURCE_HINTS); S.channelCol=findCol(S.headers,CHANNEL_HINTS);
+      S.delim=metaRes.data.delim||","; S.fileName=metaRes.data.file_name||"";
+      S.records=(peopleRes.data||[]).map(function(row){
+        var rec=Object.assign({}, row.data); rec.__id=row.id; return rec;
+      });
+      S.history=[]; S.sort={col:"",dir:1}; S.filter=""; S.facetVals={}; S.hidden={};
+      $("fpMeta").textContent=t("loadedFile")+S.fileName;
+      renderColChips(); renderVisChips(); renderFacets(); renderTable(); renderHistory();
+    } else {
+      bootFallback();
+      seedSupabase();
+    }
+  }).catch(function(){
+    toast(t("offlineFallback"));
+    bootFallback();
+  });
 }
 
 function loadRows(rows,fileName,delim){
@@ -925,6 +998,7 @@ function deleteRecord(rec){
   S.records.splice(i,1);
   closeModal();
   renderFacets(); renderTable();
+  deletePersonRemote(rec);
   toast(t("deleted"));
 }
 
@@ -999,6 +1073,7 @@ function renderTable(){
           e.stopPropagation();
           rec[h]=sel.value;
           sel.className="statuspick "+statusMeta(sel.value).cls;
+          savePerson(rec);
           toast(t("statusSaved"));
         });
         td.appendChild(sel);
@@ -1070,7 +1145,7 @@ function buildRecordCard(rec,index,total){
     editing=!editing;
     editBtn.textContent=editing?t("doneEdit"):t("edit");
     renderFields();
-    if(!editing){ renderTable(); toast(t("fieldsSaved")); }
+    if(!editing){ renderTable(); savePerson(rec); toast(t("fieldsSaved")); }
   });
   var actions=document.createElement("div"); actions.className="rec-actions";
   actions.appendChild(editBtn);
@@ -1091,7 +1166,7 @@ function buildRecordCard(rec,index,total){
   });
   ssel.addEventListener("change",function(){
     rec[S.statusCol]=ssel.value;
-    renderTable(); toast(t("statusSaved"));
+    renderTable(); savePerson(rec); toast(t("statusSaved"));
   });
   srow.appendChild(slab); srow.appendChild(ssel);
   card.appendChild(srow);
@@ -1168,7 +1243,7 @@ function buildRecordCard(rec,index,total){
         var cur=parseNotes(rec);
         cur.splice(i,1);
         writeNotes(rec,cur);
-        renderLog(); renderTable();
+        renderLog(); renderTable(); savePerson(rec);
       });
       li.appendChild(del);
       ul.appendChild(li);
@@ -1184,7 +1259,7 @@ function buildRecordCard(rec,index,total){
     if(!S.me){ toast(t("whoAreYou")); $("meInput").focus(); return; }
     addNote(rec,txt);
     ta.value="";
-    renderLog(); renderTable();
+    renderLog(); renderTable(); savePerson(rec);
     toast(t("noteAdded"));
   });
   ta.addEventListener("keydown",function(e){
@@ -1335,12 +1410,23 @@ function showAddForm(prefill){
     });
     var firstNote=inputs[S.notesCol].value.trim();
     if(firstNote) addNote(rec,firstNote);
-    S.records.push(rec);
-    closeModal();
-    $("q").value="";
-    pushHistory(name,true);
-    renderFacets(); renderTable();
-    toast(t("added"));
+    function finishAdd(){
+      S.records.push(rec);
+      closeModal();
+      $("q").value="";
+      pushHistory(name,true);
+      renderFacets(); renderTable();
+      toast(t("added"));
+    }
+    if(sb){
+      sb.from("people").insert({data:recData(rec)}).select().single().then(function(res){
+        if(res.error){ toast(t("saveError")); return; }
+        rec.__id=res.data.id;
+        finishAdd();
+      });
+    } else {
+      finishAdd();
+    }
   }));
 
   openModal();
@@ -1391,12 +1477,27 @@ function runCheck(){
   if(m.length){ pushHistory(nameOf(m[0]),true); showApproved(m); }
   else { pushHistory(q,false); showNotFound(q); }
 }
+function replaceSupabaseDataset(){
+  if(!sb) return;
+  sb.from("people").delete().neq("id","00000000-0000-0000-0000-000000000000").then(function(delRes){
+    if(delRes.error){ toast(t("seedError")); return; }
+    sb.from("people").insert(S.records.map(recData)).select().then(function(insRes){
+      if(insRes.error){ toast(t("seedError")); return; }
+      insRes.data.forEach(function(row,i){ if(S.records[i]) S.records[i].__id=row.id; });
+    });
+    sb.from("dataset_meta").upsert(datasetMetaPayload()).then(function(res){
+      if(res.error) toast(t("seedError"));
+    });
+  });
+}
 function readFile(file){
+  if(sb && !confirm(t("replaceConfirm"))) return;
   var fr=new FileReader();
   fr.onload=function(){
     try{
       var text=fr.result, d=sniffDelimiter(text);
       loadRows(parseCSV(text,d), file.name, d);
+      replaceSupabaseDataset();
       setView("table");
     }catch(e){ toast(t("bad")); }
   };
@@ -1521,10 +1622,9 @@ $("langEn").addEventListener("click",function(){ lang="en"; applyLang(); });
 /* ================= boot ================= */
 var REGISTER = {"headers":["Позиция","Имейл адрес","Имена (БГ)","Имена (EN)","Канал","Източник (таб)"],"rows":[["Международен шофьор с кат. С","","Атанас Колев","Atanas Kolev","Facebook","Social Media"],["Международен шофьор с кат. С","","Димитър Чаушев","Dimitar Chaushev","Facebook","Social Media"],["Международен шофьор с кат. С","","Мехмед Боилу","Mehmed Boilu","Facebook","Social Media"],["Международен шофьор с кат. С","","Ясен Саров","Yasen Sarov","Facebook","Social Media"],["Международен шофьор с кат. С","","Николай Върбанов","Nikolay Varbanov","Facebook","Social Media"],["Международен шофьор с кат. С","","Цветан Цветанов","Tsvetan Tsvetanov","Facebook","Social Media"],["Международен шофьор с кат. С","","Христо Анастасов","Hristo Anastasov","Facebook","Social Media"],["Международен шофьор с кат. С","","Ростислав Ненов","Rostislav Nenov","Facebook","Social Media"],["Международен шофьор с кат. С","","Ангел Стоянов","Angel Stoyanov","Facebook","Social Media"],["Международен шофьор с кат. С","","Яков Левин","Yakov Levin","Facebook","Social Media"],["Международен шофьор с кат. С","","Добромир Йорданов","Dobromir Yordanov","Facebook","Social Media"],["Международен шофьор с кат. С","","Георги Атанасов Георгиев","Georgi Atanasov Georgiev","Facebook","Social Media"],["Международен шофьор с кат. С","","Октай Зекерие","Oktay Zekerie","Facebook","Social Media"],["Международен шофьор с кат. С","","Камен Метушев","Kamen Metushev","Facebook","Social Media"],["Международен шофьор с кат. С","","Стоян Минев","Stoyan Minev","Facebook","Social Media"],["Международен шофьор с кат. С","","Мехмед Фези","Mehmed Fezi","Facebook","Social Media"],["Международен шофьор с кат. С","","Жоро Друмс","Joro Drums","Facebook","Social Media"],["Международен шофьор с кат. С","","Красимир Тонев (двойка)","Krasimir Tonev (dvoyka)","Facebook","Social Media"],["Международен шофьор с кат. С","","Атанас Илиев","Atanas Iliev","Facebook","Social Media"],["Международен шофьор с кат. С","","Пламен Ченков Георгиев","Plamen Chenkov Georgiev","Facebook","Social Media"],["Международен шофьор с кат. С","","Христо Иванов","Hristo Ivanov","Facebook","Social Media"],["Международен шофьор с кат. С","","Георги Костов","Georgi Kostov","Other","Social Media"],["Международен шофьор с кат. С","","Красимир Иванов","Krasimir Ivanov","Other","Social Media"],["Международен шофьор с кат. С","","Светослав Зафиров","Svetoslav Zafirov","Facebook","Social Media"],["Международен шофьор с кат. С","","Боян Г.","Boyan G.","Facebook","Social Media"],["Международен шофьор с кат. С","","Борислав Иванов","Borislav Ivanov","Facebook","Social Media"],["Международен шофьор с кат. С","","Веселин Тодоров","Veselin Todorov","Facebook","Social Media"],["Международен шофьор с кат. С","","Рачо Йорданов Георгиев","Racho Yordanov Georgiev","Facebook","Social Media"],["Международен шофьор с кат. С","","Лазарин Николчев","Lazarin Nikolchev","Facebook","Social Media"],["Международен шофьор с кат. С","","Тодор Василев","Todor Vasilev","Facebook","Social Media"],["Международен шофьор с кат. С","","С.Т.П.","S.T.P.","Facebook","Social Media"],["Международен шофьор с кат. С","","Денислав Анге","Denislav Ange","Facebook","Social Media"],["Международен шофьор с кат. С","","Любомир Хрисчев","Lyubomir Hrischev","Facebook","Social Media"],["Международен шофьор с кат. С","ispanesavp@gmail.com","Сезгин Насуф","Sezgin Nasuf","","Drivers"],["Международен шофьор с кат. С","stohi.st@gmail.com","Стоян Стоянов","Stoyan Stoyanov","","Drivers"],["Международен шофьор с кат. С","dimitriadis67@abv.bg","Димитър Димитров","Dimitar Dimitrov","","Drivers"],["Международен шофьор с кат. С","niki18ivanov@gmail.com","Ники Иванов","Niki Ivanov","","Drivers"],["Международен шофьор с кат. С","bad_777@abv.bg","Росен Хаджиев","Rosen Hadzhiev","","Drivers"],["Международен шофьор с кат. С","atanasmizinov@gmail.com","Атанас Красимиров Мизинов","Atanas Krasimirov Mizinov","","Drivers"],["Международен шофьор с кат. С","tshombe@abv.bg","Константин Спасов","Konstantin Spasov","","Drivers"],["Международен шофьор с кат. С","kamen_metushev850418@abv.bg","Камен Метушев","Kamen Metushev","","Drivers"],["Международен шофьор с кат. С","speisa75@abv.bg","Ивайло Иванов","Ivaylo Ivanov","","Drivers"],["Международен шофьор с кат. С","boresbek@abv.bg","Борислав Нойков","Borislav Noikov","","Drivers"],["Международен шофьор с кат. С","uzunovtayfun@gmail.com","Антон Узунов","Anton Uzunov","","Drivers"],["Международен шофьор с кат. С","y1dimov@yahoo.com","Йордан Илиев","Yordan Iliev","","Drivers"],["Международен шофьор с кат. С","biserchov707@gmail.com","Бисер Чакъров","Biser Chakarov","","Drivers"],["Международен шофьор с кат. С","bashinkata75@gmail.com","Емил Стоянов","Emil Stoyanov","","Drivers"],["Международен шофьор с кат. С","andreilevski67@gmail.com","Андрей Андреев","Andrey Andreev","","Drivers"],["Международен шофьор с кат. С","niks06254545@gmail.com","Николай Георгиев","Nikolai Georgiev","","Drivers"],["Международен шофьор с кат. С","lazarasenov1980@abv.bg","Лазар Крумов","Lazar Krumov","","Drivers"],["Международен шофьор с кат. С","","Славчо Митрев","Slavcho Mitrev","","Drivers"],["Международен шофьор с кат. С","vzaseva91@gmail.com","Ваня Илиева Бачварова","Vania Ilieva Bachvarova","","Drivers"],["Международен шофьор с кат. С","pavkata7008@abv.bg","Павел Йосифов","Pavel Iosifov","","Drivers"],["Международен шофьор с кат. С","bogidarkostov@gmail.com","Божидар Костов","Bojidar Kostov","","Drivers"],["Международен шофьор с кат. С","yordan.georgiev1170@abv.bg","Йордан Георгиев","Yordan Georgiev","","Drivers"],["Международен шофьор с кат. С","naskotaxi83@gmail.com","Атанас Илиев","Atanas Iliev","","Drivers"],["Международен шофьор с кат. С","kalatadosev@gmail.com","Калоян Досев","Kaloyan Dosev","","Drivers"],["Международен шофьор с кат. С","gocho_petkov@abv.bg","Гочо Петков","Gocho Petkov","","Drivers"],["Международен шофьор с кат. С","y.duylovskiy.brd@gmail.com","Юрий Дуйловский","Yuriy Duylovskiy","","Drivers"],["Международен шофьор с кат. С","bostesta@abv.bg","Борислав Борисов","Borislav Borisov","","Drivers"],["Международен шофьор с кат. С","Inexauto@abv.bg","Евгени Генчев","Evgeni Genchev","","Drivers"],["Международен шофьор с кат. С","ivaylo.kolev7177@gmail.com","Ивайло Колев","Ivaylo Kolev","","Drivers"],["Международен шофьор с кат. С","samirmet98@gmail.com","Самет Русид","Samet Rusid","","Drivers"],["Международен шофьор с кат. С","atanaszlatinov0@gmail.com","Атанас Златинов","Atanas Zlatinov","","Drivers"],["Международен шофьор с кат. С","elit.elit.elit@abv.bg","Асен Ангелов","Asen Angelov","","Drivers"],["Международен шофьор с кат. С","deyan220@abv.bg","Деян Семов","Deyan Semov","","Drivers"],["Международен шофьор с кат. С","vkirev1991@gmail.com","Валентин Кирев","Valentin Kirev","","Drivers"],["Международен шофьор с кат. С","m.yord1997@gmail.com","Митко Боянов","Mitko Boyanov","","Drivers"],["Международен шофьор с кат. С","panche_@abv.bg","Петър Панчев","Petar Panchev","","Drivers"],["Международен шофьор с кат. С","mertinsali677@gmail.com","Мертин Сали","Mertin Sali","","Drivers"],["Международен шофьор с кат. С","valio75av@abv.bg","Валентин Аврамов","Valentin Avramov","","Drivers"],["Международен шофьор с кат. С","ivailo86kostov@gmail.com","Ивайло Костов","Ivailo Kostov","","Drivers"],["Международен шофьор с кат. С","bogidarkostov@gmail.com","Божидар Костов","Bojidar Kostov","","Drivers"],["Международен шофьор с кат. С","pekerdeniz41@gmail.com","Ферди Сюлейман","Ferdi Syuleyman","","Drivers"],["Международен шофьор с кат. С","pplugov90@gmail.com","Павел Плугов","Pavel Plugov","","Drivers"],["Международен шофьор с кат. С","mihailraykov1980@gmail.com","Михаил Райков","Mihail Raykov","","Drivers"],["Международен шофьор с кат. С","lpatsireva@gmail.com","Владислав Пацирев","Vladislav Pacirev","","Drivers"],["Международен шофьор с кат. С","viktor_novakov@abv.bg","Виктор Новаков","Viktor Novakov","","Drivers"],["Международен шофьор с кат. С","a_ali@abv.bg","Али Али","Ali Ali","","Drivers"],["Международен шофьор с кат. С","asd777248@gmail.com","Чингиз","Chingiz","","Drivers"],["Международен шофьор с кат. С","velev2701@gmail.com","Велев Сергей","Velev Sergey","","Drivers"],["Международен шофьор с кат. С","nikolaygavrilov97@gmail.com","Николай Гаврилов","Nikolay Gavrilov","","Drivers"],["Международен шофьор с кат. С","marin.m.nikolov@gmail.com","Марин Николов","Marin Nikolov","","Drivers"],["Международен шофьор с кат. С","rtradebg@gmail.com","Румен Русанов","Rumen Rusanov","","Drivers"],["Международен шофьор с кат. С","tayfun111@abv.bg","Тайфун Узунов Тони","Tayfun Uzunov Tony","","Drivers"],["Международен шофьор с кат. С","stanevnedko78@gmail.com","Недко Станев","Nedko Stanev","","Drivers"],["Международен шофьор с кат. С","lubko99@abv.bg","Любослав","Lyuboslav","","Drivers"],["Международен шофьор с кат. С","daniel.vasilev060470@gmail.com","Даниел Василев","Daniel Vasilev","","Drivers"],["Международен шофьор с кат. С","fuzito91@abv.bg","Фазлъ Сали","Fazla Sali","","Drivers"],["Международен шофьор с кат. С","emil_yyanev@abv.bg","Емил Янев","Emil Yanev","","Drivers"],["Международен шофьор с кат. С","momchil8160@gmail.com","Момчил Топалов","Momchil Topalov","","Drivers"],["Международен шофьор с кат. С","donevdian4@gmail.com","Диян Донев","Diyan Donev","","Drivers"],["Международен шофьор с кат. С","slavisalimov1822@gmail.com","Слави Салимов","Slavi Salimov","","Drivers"],["Международен шофьор с кат. С","iliev5496@gmail.com","Димитър Таня","Dimitar Tanya","","Drivers"],["Международен шофьор с кат. С","nikola.marinov72@gmail.com","Никола Маринов","Nikola Marinov","","Drivers"],["Международен шофьор с кат. С","boqnzafirov9@gmail.com","Боян Боби","Boyan Bobi","","Drivers"],["Международен шофьор с кат. С","nihat197236@hotmail.com","Толга Мехмедемин","Tolga Mehmedemin","","Drivers"],["Международен шофьор с кат. С","pamela98@abv.bg","Стоян Йолов","Stoian Yolov","","Drivers"],["Международен шофьор с кат. С","enogeorgiev67@gmail.com","Еньо Георгиев","Enyo Georgiev","","Drivers"],["Международен шофьор с кат. С","genadigt79@abv.bg","Генади Тодоров","Genadi Todorov","","Drivers"],["Международен шофьор с кат. С","elvisplamenov@gmail.com","Пламен Емилов Радославов","Plamen Emilov Radoslavov","","Drivers"],["Международен шофьор с кат. С","cosmos1990@abv.bg","Габриел Георгиев","Gabriel Georgiev","","Drivers"],["Международен шофьор с кат. С","veselin4o1980@abv.bg","Веселин Василев","Veselin Vasilev","","Drivers"],["Международен шофьор с кат. С","angeliovcheviovchev@gmail.com","Ангел Йовчев Геров","Angel Yovchev Gerov","","Drivers"],["Международен шофьор с кат. С","yusmenayvaz0@gmail.com","Юсмен Айваз","Yusmen Ayvaz","","Drivers"],["Международен шофьор с кат. С","pekerdeniz41@gmail.com","Ферди Сюлейман","Ferdi Syuleyman","","Drivers"],["Международен шофьор с кат. С","rmsuharev3@gmail.com","Радослав Сухарев","Radoslav Suharev","","Drivers"],["Международен шофьор с кат. С","kristianslavov921@gmail.com","Кристиян Славов","Kristiyan Slavov","","Drivers"],["Международен шофьор с кат. С","kiriltodorov644@gmail.com","Кирил Тодоров","Kiril Todorov","","Drivers"],["Международен шофьор с кат. С","atraqn259@gmail.com","Траян Асенов","Trajan Assenow","","Drivers"],["Международен шофьор с кат. С","bmw1976@abv.bg","Радомир","Radomir","","Drivers"],["Международен шофьор с кат. С","dragomir770925@gmail.com","Драгомир Илков","Dragomir Ilkov","","Drivers"],["Международен шофьор с кат. С","radoslavraychev027@gmail.com","Асен Райчев","Asen Raychev","","Drivers"],["Международен шофьор с кат. С","angelkrstanov0@gmail.com","Ангел Кръстанов","Angel Krastanov","","Drivers"],["Международен шофьор с кат. С","ivaniliev595@gmail.com","Иван Илиев","Ivan Iliev","","Drivers"],["Международен шофьор с кат. С","ivailo231185@gmail.com","Ивайло Стефанов","Ivailo Stefanov","","Drivers"],["Международен шофьор с кат. С","marin.m.nikolov@gmail.com","Марин Николов","Marin Nikolov","","Drivers"],["Международен шофьор с кат. С","i.markov@abv.bg","Иван Любомиров Марков","Ivan Lyubomirov Markov","","Drivers"],["Международен шофьор с кат. С","stoilyordanov6@gmail.com","Стоил Йорданов Мирчев","Stoil Yordanov Mirchev","","Drivers"],["Международен шофьор с кат. С","hristo19733@abv.bg","Христо Христов","Hristo Hristov","","Drivers"],["Международен шофьор с кат. С","stoqankaradjov14@gmail.com","Стоян Караджов","Stoyan Karadzhov","","Drivers"],["Международен шофьор с кат. С","borisovelenko86@gmail.com","Еленко Борисов","Elenko Borisov","","Drivers"],["Международен шофьор с кат. С","roska0669@gmail.com","Самир Узел","Samir Uzel","","Drivers"],["Международен шофьор с кат. С","iskohasan@abv.bg","Слави Тодоров","Slavi Todorov","","Drivers"],["Международен шофьор с кат. С","borislav8481@gmail.com","Борислав Коджебашев","Borislav Kodjebashev","","Drivers"],["Международен шофьор с кат. С","georgievemil202@gmail.com","Емил Георгиев","Emil Georgiev","","Drivers"],["Международен шофьор с кат. С","mario.krasimirov.krastev@abv.bg","Марио Кръстев","Mario Krastev","","Drivers"],["Международен шофьор с кат. С","piton4etoo@abv.bg","Господин Асенов","Gospodin Asenov","","Drivers"],["Международен шофьор с кат. С","asenangelov482@gmail.com","Асен Ангелов","Asen Angelov","","Drivers"],["Международен шофьор с кат. С","kocetokandilarov85@abv.bg","Костадин Кандиларов","Kostadin Kandilarov","","Drivers"],["Международен шофьор с кат. С","stoqnkolev6@gmail.com","Стоян Колев","Stoyan Kolev","","Drivers"],["Международен шофьор с кат. С","boisovtotorov@gmail.com","Красимир Тодоров","Krasimir Todorov","","Drivers"],["Международен шофьор с кат. С","dimitardimitrov2973@gmail.com","Димитър Димитров","Dimitar Dimitrov","","Drivers"],["Международен шофьор с кат. С","salievaemina441@gmail.com","Еминя","Eminya","","Drivers"],["Международен шофьор с кат. С","zlatkokostadinov669@gmail.com","Златко Костадинов","Zlatko Kostadinov","","Drivers"],["Международен шофьор с кат. С","ahmetsuleyman569@gmail.com","Ахмед Ахмед","Ahmed Ahmed","","Drivers"],["Международен шофьор с кат. С","doniyorshamsuddinov19760304@gmail.com","Дониор Шамсудинов","Doniyor Shamsuddinov","","Drivers"],["Международен шофьор с кат. С","nikolaymarinov@abv.bg","Николай Маринов","Nikolay Marinov","","Drivers"],["Международен шофьор с кат. С","petartomchev@abv.bg","Петър Томчев","Petar Tomchev","","Drivers"],["Международен шофьор с кат. С","ggifto79@gmail.com","Асен Дяков","Asen Dyakov","","Drivers"],["Международен шофьор с кат. С","lazovsaso96@gmail.com","Сашо Лазов","Sasho Lazov","","Drivers"],["Международен шофьор с кат. С","liusimi4ov@gmail.com","Лудмил Драгойчев","Ludmil Dragoichev","","Drivers"],["Международен шофьор с кат. С","petkoparushev71@gmail.com","Петко Паручев","Petko Paruchev","","Drivers"],["Международен шофьор с кат. С","lafd@mail.bg","Люсиен","Lyusien","","Drivers"],["Международен шофьор с кат. С","rushenmyumyun421@gmail.com","Рушен Расимов","Rushen Rasimov","","Drivers"],["Международен шофьор с кат. С","mi7o_pit_bull@abv.bg","Димитър Георгиев","Dimitar Georgiev","","Drivers"],["Международен шофьор с кат. С","mehmedmehmedovghs@gmail.com","Мехмед Мехмедов Шукриев","Mehmed Mehmedov Shukriev","","Drivers"],["Международен шофьор с кат. С","rosenzekov9@gmail.com","Росен Жеков","Rosen Zhekov","","Drivers"],["Международен шофьор с кат. С","iavramov1971@gmail.com","Иван Аврамов","Ivan Avramov","","Drivers"],["Международен шофьор с кат. С","ivanovvangel494@gmail.com","Вангел Иванов","Vangel Ivanov","","Drivers"],["Международен шофьор с кат. С","v734911@gmail.com","Веселин Валев","Veselin Valev","","Drivers"],["Международен шофьор с кат. С","kiril.enev@abv.bg","Кирил Енев","Kiril Enev","","Drivers"],["Международен шофьор с кат. С","angel_tsarski.ltd@abv.bg","Ангел","Angel","","Drivers"],["Международен шофьор с кат. С","8709298468b@gmail.com","Краси Динев","Krasi Dinev","","Drivers"],["Международен шофьор с кат. С","peveca.nikolov@mail.bg","Исак Николов","Isak Nikolov","","Drivers"],["Международен шофьор с кат. С","shells@abv.bg","Илия Благоев","Iliya Blagoev","","Drivers"],["Международен шофьор с кат. С","dimitaratanasov777@gmail.com","Димитър Атанасов","Dimitar Atanasov","","Drivers"],["Международен шофьор с кат. С","mihaelmihajlov745@gmail.com","Михаел Михайлов","Mihael Mihaylov","","Drivers"],["Международен шофьор с кат. С","svetkata1976@gmail.com","Светослав Зафиров","Svetoslav Zafirov","","Drivers"],["Международен шофьор с кат. С + Е","dinkotruhchev18@gmail.com","Динко Трухчев","Dinko Truhchev","","Drivers"],["Международен шофьор с кат. С","plamenshko@gmail.com","Пламен Шкодров","Plamen Shkodrov","","Drivers"],["Международен шофьор с кат. С","balevhristo@abv.bg","Христо Балев","Hristo Balev","","Drivers"],["Международен шофьор с кат. С","nachev2934@gmail.com","Атанас Начев","Atanas Nachev","","Drivers"],["Международен шофьор с кат. С + Е","petar92slavchev@gmail.com","Петър Славчев","Petur Slavchev","","Drivers"],["Международен шофьор с кат. С","atanas_19811980@abv.bg","Атанас Атанасов","Atanas Atanasov","","Drivers"],["Международен шофьор с кат. С","mahkambek_2211@icloud.com","Зубайр Турсунов","Zubayr Tursunov","","Drivers"],["Международен шофьор с кат. С + Е","lachezar0987.kamenov@abv.bg","Лъчезар Каменов","Lachezar Kamenov","","Drivers"],["Шофьори кат. C и C+E","simeonovbgt@gmail.com","Цветослав Симеонов","Tzvetoslav Simeonov","","Drivers"],["Международен шофьор с кат. С","onurito@abv.bg","Онур Касулу","Onur Kasoolu","","Drivers"],["Международен шофьор с кат. С","deyan220@abv.bg","Деян Семов","Deyan Semov","","Drivers"],["Международен шофьор с кат. С","miroslavgospodinov710920@gmail.com","Мирослав Марков","Miroslav Markov","","Drivers"],["Международен шофьор с кат. С","yenilmez.balkancho@gmail.com","Изет Йълдъзхан","Izet Yildizhan","","Drivers"],["Международен шофьор с кат. С","tihomirmetoduev73@gmail.com","Роберто Карлос","Roberto Karlos","","Drivers"],["Международен шофьор с кат. С","georgikdoikov@gmail.com","Георги Дойков","Georgi Doikov","","Drivers"],["Международен шофьор с кат. С","melevps@gmail.com","Панко Мелев","Panko Melev","","Drivers"],["Международен шофьор с кат. С","iliqniliev973@gmail.com","Илиян Илиев","Iliyan Iliev","","Drivers"],["Международен шофьор с кат. С","edisahmed89@abv.bg","Едис Вели Ахмед","Edis Veli Ahmed","","Drivers"],["Международен шофьор с кат. С","petrg677@gmail.com","Петър Георгиев","Petar Georgiev","","Drivers"],["ГЛОРИЪР ООД","velizar.nikolaev30@gmail.com","Вил Николаев","Vill Nikolaev","","Drivers"],["Шофьори кат. С","solijon77uz@gmail.com","Солижон Абдулаев","Solijon Abdullaev","","Drivers"],["Шофьори кат. С","surmaivan8@gmail.com","Иван Сурма","Ivan Surma","","Drivers"],["Шофьори кат. С","tekila70@abv.bg","Веселин Сашев","Veselin Sashev","","Drivers"],["Шофьори кат. С","hasanahmed4701@icloud.com","Хасан Ахмед","Hasan Ahmed","","Drivers"],["Шофьори кат. С","antani1976@abv.bg","Антани Димитров","Antani Dimitrov","","Drivers"],["Шофьори кат. С","ivelinkamenov38@gmail.com","Ивелин Каменов","Ivelin Kamenov","","Drivers"],["Шофьори кат. С","lpatsireva@gmail.com","Владислав Пацирев","Vladislav Pacirev","","Drivers"],["Шофьори кат. С","vasilkirkov1961@abv.bg","Васил Кирков","Vasil Kirkov","","Drivers"],["Шофьори кат. С","penew.ivo@gmail.com","Иво Пенев","Ivo Penev","","Drivers"],["Шофьори кат. С","kriskostov66@gmail.com","Красимир Костов","Krasimir Kostov","","Drivers"],["Шофьори кат. С","kocestoyanov042@gmail.com","Коце Стоянов","Kotse Stoyanov","","Drivers"],["Шофьори кат. С","lazar_31@mail.bg","Лазар Антонов","Lazar Antonov","","Drivers"],["Шофьори кат. С","rumenm878@gmail.com","Румен Христов","Rumen Hristov","","Drivers"],["Шофьори кат. С","y1dimov@yahoo.com","Йордан Илиев","Yordan Iliev","","Drivers"],["Шофьори кат. С","icloud.22840@icloud.com","Мартин Жеков","Martin Jekov","","Drivers"],["Международен шофьор с кат. С","gkostov11@gmail.com","Георги Костов","Georgi Kostov","","Drivers"],["Международен шофьор с кат. С","toma_bmw@abv.bg","Тома Томов","Toma Tomov","","Drivers"],["Международен шофьор с кат. С","ros_iliev@abv.bg","Роси Илиев","Rosi Iliev","","Drivers"],["Международен шофьор с кат. С","cvetomirpaynov95@gmail.com","Цветомир Паунов","Tsvetomir Paunov","","Drivers"],["Международен шофьор с кат. С","hrstptrv@gmail.com","Христо Петров","Hristo Petrov","","Drivers"],["Международен шофьор с кат. С","mudinval77@gmail.com","Красимир Кръстев","Krasimir Krastev","","Drivers"]]};
 
-loadRows([REGISTER.headers].concat(REGISTER.rows),
-  "Глориър — Обединен списък кандидати", ",");
 applyLang();
 setView("check");
+boot();
 })();
 </script>
 </body>
