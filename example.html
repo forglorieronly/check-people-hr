@@ -615,16 +615,31 @@ async function fetchDataset(){
            records:records };
 }
 
+async function insertAllAndSaveMeta(){
+  var rows=S.records.map(function(r){ var copy={}; S.headers.forEach(function(h){ copy[h]=r[h]; }); return {data:copy}; });
+  if(rows.length){
+    var ins=await sb.from('people').insert(rows).select('id');
+    if(ins.error) throw ins.error;
+    ins.data.forEach(function(row,i){ S.records[i].__id=row.id; });
+  }
+  var metaRes=await sb.from('dataset_meta').upsert({ id:1, headers:S.headers, name_cols:S.nameCols, notes_col:S.notesCol,
+    status_col:S.statusCol, delim:S.delim, file_name:S.fileName });
+  if(metaRes.error) throw metaRes.error;
+}
+
+/* Destructive replace — used when the user explicitly imports a new CSV. */
 async function resyncDataset(){
   try{
     await sb.from('people').delete().neq('id','00000000-0000-0000-0000-000000000000');
-    var rows=S.records.map(function(r){ var copy={}; S.headers.forEach(function(h){ copy[h]=r[h]; }); return {data:copy}; });
-    if(rows.length){
-      var ins=await sb.from('people').insert(rows).select('id');
-      if(!ins.error) ins.data.forEach(function(row,i){ S.records[i].__id=row.id; });
-    }
-    await sb.from('dataset_meta').upsert({ id:1, headers:S.headers, name_cols:S.nameCols, notes_col:S.notesCol,
-      status_col:S.statusCol, delim:S.delim, file_name:S.fileName });
+    await insertAllAndSaveMeta();
+  }catch(e){ toast(t("saveFailed")); }
+}
+
+/* Insert-only bootstrap seed — used when the database is empty on first load.
+   Never deletes, so a failed/partial attempt can't wipe data a later load would find. */
+async function seedDataset(){
+  try{
+    await insertAllAndSaveMeta();
   }catch(e){ toast(t("saveFailed")); }
 }
 
@@ -693,7 +708,6 @@ function loadRows(rows,fileName,delim){
   $("fpMeta").textContent=t("loadedFile")+fileName;
   $("filepanel").hidden=true;
   renderColChips(); renderVisChips(); renderFacets(); renderTable(); renderHistory();
-  resyncDataset();
 }
 
 /* ================= record helpers ================= */
@@ -1309,6 +1323,7 @@ function readFile(file){
     try{
       var text=fr.result, d=sniffDelimiter(text);
       loadRows(parseCSV(text,d), file.name, d);
+      resyncDataset();
       setView("table");
     }catch(e){ toast(t("bad")); }
   };
@@ -1446,6 +1461,7 @@ if(remote && remote.records && remote.records.length){
 } else {
   loadRows([REGISTER.headers].concat(REGISTER.rows),
     "Глориър — Обединен списък кандидати", ",");
+  seedDataset();
 }
 applyLang();
 setView("check");
