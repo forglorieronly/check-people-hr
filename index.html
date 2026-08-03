@@ -4,9 +4,17 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Глориър · Проверка на кандидати</title>
+<script>
+  window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
+</script>
+<script defer src="/_vercel/insights/script.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<script>
+  window.si = window.si || function () { (window.siq = window.siq || []).push(arguments); };
+</script>
+<script defer src="/_vercel/speed-insights/script.js"></script>
 <style>
 :root{
   --ink:#16202B; --ink-soft:#3A4A59; --muted:#6E8091;
@@ -39,6 +47,10 @@ input,select,textarea{font-family:inherit}
 .brand-sub{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);
   letter-spacing:.08em;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .topright{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.pplcount{display:flex;align-items:center;gap:5px;background:var(--card);border:1px solid var(--line);
+  border-radius:999px;padding:6px 14px;font-family:'JetBrains Mono',monospace;font-size:12px;
+  font-weight:600;color:var(--ink);white-space:nowrap}
+.pplcount .n{color:var(--accent)}
 .me{display:flex;align-items:center;gap:7px;background:var(--card);border:1px solid var(--line);
   border-radius:999px;padding:4px 6px 4px 13px}
 .me label{font-size:12px;color:var(--muted);white-space:nowrap}
@@ -68,6 +80,8 @@ input,select,textarea{font-family:inherit}
 .btn-accent:hover{background:#0A616E;color:#fff}
 .btn-ghost{border-color:transparent;background:transparent;color:var(--muted)}
 .btn-ghost:hover{color:var(--ink);border-color:var(--line)}
+.btn-danger{color:#B4232C}
+.btn-danger:hover{color:#B4232C;border-color:#B4232C}
 .btn-sm{padding:6px 11px;font-size:12.5px}
 
 .desk{text-align:center}
@@ -188,6 +202,7 @@ td.name{color:var(--ink);font-weight:600}
 
 .reccard + .reccard{margin-top:22px;padding-top:20px;border-top:2px solid var(--line-soft)}
 .rec-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
+.rec-actions{display:flex;align-items:center;gap:6px}
 .rec-tag{margin:0;padding:4px 9px;background:var(--paper);border-radius:6px;display:inline-block}
 .statusrow{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px}
 .statusrow label{font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.1em;
@@ -302,6 +317,7 @@ td.name{color:var(--ink);font-weight:600}
       <span class="brand-sub" data-t="brandsub">Списък кандидати</span>
     </div>
     <div class="topright">
+      <div class="pplcount" id="pplCount" aria-live="polite"><span class="n" id="pplCountN">—</span> <span id="pplCountLabel">в базата</span></div>
       <div class="me">
         <label for="meInput" data-t="youAre">Ти си:</label>
         <input type="text" id="meInput" maxlength="6" placeholder="ВД" aria-label="Initials">
@@ -447,7 +463,10 @@ var T = {
     fieldsSaved:"Промените са запазени в списъка.",
     all:"Всички", records:"записа", withNotes:"с бележки", shown:"показани",
     empty:"празно", bad:"Файлът не може да се прочете като CSV.", noCols:"Файлът няма колони.",
-    reminder:"Бележките и статусите живеят само в този раздел. Изтегли CSV, за да ги запазиш."
+    reminder:"Бележките и статусите живеят само в този раздел. Изтегли CSV, за да ги запазиш.",
+    peopleCount:"в базата",
+    deletePerson:"Изтрий", deleteConfirm:"Сигурни ли сте, че искате да изтриете {name} от списъка? Това не може да се отмени.",
+    deleted:"Записът е изтрит."
   },
   en:{
     brandsub:"Candidate list", youAre:"You are:",
@@ -485,7 +504,10 @@ var T = {
     fieldsSaved:"Changes saved to the list.",
     all:"All", records:"records", withNotes:"with notes", shown:"shown",
     empty:"empty", bad:"This file can't be read as CSV.", noCols:"The file has no columns.",
-    reminder:"Notes and statuses live in this tab only. Download the CSV to keep them."
+    reminder:"Notes and statuses live in this tab only. Download the CSV to keep them.",
+    peopleCount:"in the database",
+    deletePerson:"Delete", deleteConfirm:"Are you sure you want to delete {name} from the list? This can't be undone.",
+    deleted:"Record deleted."
   }
 };
 var lang="bg";
@@ -505,6 +527,57 @@ function statusMeta(v){
   return {v:v||STATUSES[0].v, en:v||STATUSES[0].en, cls:"st-new"};
 }
 function statusLabel(v){ var m=statusMeta(v); return lang==="bg"?m.v:m.en; }
+
+/* ================= channels ================= */
+var CHANNELS=[
+  {v:"Facebook",         en:"Facebook"},
+  {v:"Instagram",        en:"Instagram"},
+  {v:"Outdoor campaign", en:"Outdoor campaign"},
+  {v:"Other",            en:"Other"}
+];
+function channelLabel(v){
+  for(var i=0;i<CHANNELS.length;i++) if(CHANNELS[i].v===v) return lang==="bg"?CHANNELS[i].v:CHANNELS[i].en;
+  return v;
+}
+
+/* ================= BG/EN name transliteration (best-effort, not a perfect round-trip) ================= */
+var BG2EN={
+  "а":"a","б":"b","в":"v","г":"g","д":"d","е":"e","ж":"zh","з":"z","и":"i","й":"y",
+  "к":"k","л":"l","м":"m","н":"n","о":"o","п":"p","р":"r","с":"s","т":"t","у":"u",
+  "ф":"f","х":"h","ц":"ts","ч":"ch","ш":"sh","щ":"sht","ъ":"a","ь":"y","ю":"yu","я":"ya"
+};
+var EN2BG_CHUNKS=[
+  ["sht","щ"],["zh","ж"],["ts","ц"],["ch","ч"],["sh","ш"],["yu","ю"],["ya","я"],
+  ["a","а"],["b","б"],["v","в"],["g","г"],["d","д"],["e","е"],["z","з"],["i","и"],
+  ["y","й"],["k","к"],["l","л"],["m","м"],["n","н"],["o","о"],["p","п"],["r","р"],
+  ["s","с"],["t","т"],["u","у"],["f","ф"],["h","х"]
+];
+function translitBgToEn(str){
+  return String(str||"").split("").map(function(ch){
+    var low=ch.toLowerCase();
+    var mapped=BG2EN[low];
+    if(!mapped) return ch;
+    if(ch!==low) mapped=mapped.charAt(0).toUpperCase()+mapped.slice(1);
+    return mapped;
+  }).join("");
+}
+function translitEnToBg(str){
+  var s=String(str||""); var out=""; var i=0;
+  while(i<s.length){
+    var low=s.slice(i).toLowerCase();
+    var matched=false;
+    for(var j=0;j<EN2BG_CHUNKS.length;j++){
+      var chunk=EN2BG_CHUNKS[j][0];
+      if(low.indexOf(chunk)===0){
+        var bg=EN2BG_CHUNKS[j][1];
+        if(s.charAt(i)!==s.charAt(i).toLowerCase()) bg=bg.charAt(0).toUpperCase()+bg.slice(1);
+        out+=bg; i+=chunk.length; matched=true; break;
+      }
+    }
+    if(!matched){ out+=s.charAt(i); i++; }
+  }
+  return out;
+}
 
 function applyLang(){
   document.documentElement.lang=lang;
@@ -590,13 +663,15 @@ function toCSV(headers,records,delim){
 }
 
 /* ================= state ================= */
-var S={ headers:[], records:[], nameCols:[], notesCol:"", statusCol:"", hidden:{},
+var S={ headers:[], records:[], nameCols:[], notesCol:"", statusCol:"", sourceCol:"", channelCol:"", hidden:{},
         delim:",", fileName:"", history:[], sort:{col:"",dir:1}, filter:"", facetVals:{}, me:"" };
 
 var NAME_HINTS=["име","имена","name","person","служител","employee","шофьор","driver","лице"];
 var NOT_NAME=["имейл","мейл","email","e-mail","mail","телефон","phone"];
 var NOTE_HINTS=["бележ","коментар","note","comment","remark"];
 var STATUS_HINTS=["статус","status","етап","stage"];
+var SOURCE_HINTS=["източник","source"];
+var CHANNEL_HINTS=["канал","channel"];
 
 function guessNameCols(headers){
   var hits=headers.filter(function(h){
@@ -638,6 +713,8 @@ function loadRows(rows,fileName,delim){
     headers.push(S.notesCol);
     records.forEach(function(r){ r[S.notesCol]=""; });
   }
+  S.sourceCol=findCol(headers,SOURCE_HINTS);
+  S.channelCol=findCol(headers,CHANNEL_HINTS);
 
   S.headers=headers; S.records=records; S.delim=delim||",";
   S.fileName=fileName; S.nameCols=guessNameCols(headers);
@@ -835,6 +912,22 @@ function colWidth(h){
   return "auto";
 }
 
+function updatePeopleCount(){
+  var el=$("pplCountN"), lb=$("pplCountLabel");
+  if(el) el.textContent=S.records.length;
+  if(lb) lb.textContent=t("peopleCount");
+}
+
+function deleteRecord(rec){
+  var i=S.records.indexOf(rec);
+  if(i<0) return;
+  if(!window.confirm(t("deleteConfirm").replace("{name}",nameOf(rec)||"—"))) return;
+  S.records.splice(i,1);
+  closeModal();
+  renderFacets(); renderTable();
+  toast(t("deleted"));
+}
+
 function renderTable(){
   var thead=$("thead"), tbody=$("tbody"), cg=$("colgroup");
   if(!thead) return;
@@ -939,6 +1032,7 @@ function renderTable(){
     ? S.records.length+" "+t("records")
     : rows.length+" / "+S.records.length+" "+t("shown");
   $("tNotes").textContent = withNotes+" "+t("withNotes");
+  updatePeopleCount();
 }
 
 /* ================= modal ================= */
@@ -978,7 +1072,11 @@ function buildRecordCard(rec,index,total){
     renderFields();
     if(!editing){ renderTable(); toast(t("fieldsSaved")); }
   });
-  head.appendChild(editBtn);
+  var actions=document.createElement("div"); actions.className="rec-actions";
+  actions.appendChild(editBtn);
+  var delBtn=mkBtn(t("deletePerson"),"btn btn-ghost btn-sm btn-danger",function(){ deleteRecord(rec); });
+  actions.appendChild(delBtn);
+  head.appendChild(actions);
   card.appendChild(head);
 
   /* status */
@@ -1008,7 +1106,24 @@ function buildRecordCard(rec,index,total){
       var dt=document.createElement("dt"); dt.textContent=h;
       var dd=document.createElement("dd");
       var v=(rec[h]||"").trim();
-      if(editing){
+      if(editing && h===S.channelCol){
+        var sel=document.createElement("select");
+        var known=false;
+        CHANNELS.forEach(function(c){
+          var o=document.createElement("option");
+          o.value=c.v; o.textContent=lang==="bg"?c.v:c.en;
+          if(c.v===v) known=true;
+          sel.appendChild(o);
+        });
+        if(v&&!known){
+          var o2=document.createElement("option");
+          o2.value=v; o2.textContent=v;
+          sel.appendChild(o2);
+        }
+        sel.value=v;
+        sel.addEventListener("change",function(){ rec[h]=sel.value; });
+        dd.appendChild(sel);
+      } else if(editing){
         var inp=document.createElement("input");
         inp.type="text"; inp.value=v;
         inp.addEventListener("input",function(){ rec[h]=inp.value; });
@@ -1149,6 +1264,7 @@ function showAddForm(prefill){
   var grid=document.createElement("div"); grid.className="form-grid";
   var inputs={};
   S.headers.forEach(function(h){
+    if(h===S.sourceCol) return;
     var wrap=document.createElement("div"); wrap.className="f";
     var lab=document.createElement("label");
     lab.textContent = h===S.statusCol ? t("statusLabel") : (h===S.notesCol ? t("notes") : h);
@@ -1164,6 +1280,13 @@ function showAddForm(prefill){
         o.value=s.v; o.textContent=lang==="bg"?s.v:s.en;
         inp.appendChild(o);
       });
+    } else if(h===S.channelCol){
+      inp=document.createElement("select");
+      CHANNELS.forEach(function(c){
+        var o=document.createElement("option");
+        o.value=c.v; o.textContent=lang==="bg"?c.v:c.en;
+        inp.appendChild(o);
+      });
     } else if(h===S.notesCol){
       inp=document.createElement("textarea");
       inp.placeholder=t("notePh");
@@ -1177,6 +1300,25 @@ function showAddForm(prefill){
   });
   body.appendChild(grid);
 
+  var bgCol=primaryCol(), enCol=S.nameCols[1];
+  if(bgCol && enCol && inputs[bgCol] && inputs[enCol]){
+    var autoFilled={bg:false,en:false};
+    inputs[bgCol].addEventListener("input",function(){
+      autoFilled.bg=false;
+      if(!inputs[enCol].value.trim()||autoFilled.en){
+        inputs[enCol].value=translitBgToEn(inputs[bgCol].value);
+        autoFilled.en=true;
+      }
+    });
+    inputs[enCol].addEventListener("input",function(){
+      autoFilled.en=false;
+      if(!inputs[bgCol].value.trim()||autoFilled.bg){
+        inputs[bgCol].value=translitEnToBg(inputs[enCol].value);
+        autoFilled.bg=true;
+      }
+    });
+  }
+
   var foot=$("slipFoot"); foot.innerHTML="";
   foot.appendChild(mkBtn(t("cancel"),"btn",closeModal));
   foot.appendChild(mkBtn(t("save"),"btn btn-accent",function(){
@@ -1189,7 +1331,7 @@ function showAddForm(prefill){
     var rec={};
     S.headers.forEach(function(h){
       if(h===S.notesCol){ rec[h]=""; return; }
-      rec[h]=inputs[h].value.trim();
+      rec[h]=inputs[h]?inputs[h].value.trim():"";
     });
     var firstNote=inputs[S.notesCol].value.trim();
     if(firstNote) addNote(rec,firstNote);
