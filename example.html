@@ -599,8 +599,8 @@ var S={ headers:[], records:[], nameCols:[], notesCol:"", statusCol:"", hidden:{
         delim:",", fileName:"", history:[], sort:{col:"",dir:1}, filter:"", facetVals:{}, me:"" };
 
 /* ================= persistence (Supabase) ================= */
-var SUPABASE_URL="<<SUPABASE_PROJECT_URL>>";
-var SUPABASE_ANON_KEY="<<SUPABASE_ANON_KEY>>";
+var SUPABASE_URL="https://tfjupfgzbjwqftnyhjko.supabase.co";
+var SUPABASE_ANON_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRmanVwZmd6Ymp3cWZ0bnloamtvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY1ODg3MzEsImV4cCI6MjA5MjE2NDczMX0.poI5ix8UF_skb6ViYO-NGq1SgKcIwmTKbc-eSq4ZpQg";
 var sb=window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 async function fetchDataset(){
