@@ -593,6 +593,25 @@ function toCSV(headers,records,delim){
 var S={ headers:[], records:[], nameCols:[], notesCol:"", statusCol:"", hidden:{},
         delim:",", fileName:"", history:[], sort:{col:"",dir:1}, filter:"", facetVals:{}, me:"" };
 
+/* ================= persistence (localStorage) ================= */
+var STORAGE_KEY="checkPeopleHR.example.v1";
+var persistTimer=null;
+function persistNow(){
+  try{
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      headers:S.headers, records:S.records, nameCols:S.nameCols,
+      notesCol:S.notesCol, statusCol:S.statusCol, delim:S.delim, fileName:S.fileName
+    }));
+  }catch(e){ /* storage full/unavailable — in-memory state still works */ }
+}
+function persist(){ clearTimeout(persistTimer); persistTimer=setTimeout(persistNow,250); }
+function loadPersisted(){
+  try{
+    var raw=localStorage.getItem(STORAGE_KEY);
+    return raw?JSON.parse(raw):null;
+  }catch(e){ return null; }
+}
+
 var NAME_HINTS=["име","имена","name","person","служител","employee","шофьор","driver","лице"];
 var NOT_NAME=["имейл","мейл","email","e-mail","mail","телефон","phone"];
 var NOTE_HINTS=["бележ","коментар","note","comment","remark"];
@@ -647,6 +666,7 @@ function loadRows(rows,fileName,delim){
   $("fpMeta").textContent=t("loadedFile")+fileName;
   $("filepanel").hidden=true;
   renderColChips(); renderVisChips(); renderFacets(); renderTable(); renderHistory();
+  persist();
 }
 
 /* ================= record helpers ================= */
@@ -993,6 +1013,7 @@ function buildRecordCard(rec,index,total){
   });
   ssel.addEventListener("change",function(){
     rec[S.statusCol]=ssel.value;
+    persist();
     renderTable(); toast(t("statusSaved"));
   });
   srow.appendChild(slab); srow.appendChild(ssel);
@@ -1011,7 +1032,7 @@ function buildRecordCard(rec,index,total){
       if(editing){
         var inp=document.createElement("input");
         inp.type="text"; inp.value=v;
-        inp.addEventListener("input",function(){ rec[h]=inp.value; });
+        inp.addEventListener("input",function(){ rec[h]=inp.value; persist(); });
         dd.appendChild(inp);
       } else if(v){ dd.textContent=v; }
       else { dd.textContent=t("empty"); dd.className="empty"; }
@@ -1053,6 +1074,7 @@ function buildRecordCard(rec,index,total){
         var cur=parseNotes(rec);
         cur.splice(i,1);
         writeNotes(rec,cur);
+        persist();
         renderLog(); renderTable();
       });
       li.appendChild(del);
@@ -1068,6 +1090,7 @@ function buildRecordCard(rec,index,total){
     if(!txt) { ta.focus(); return; }
     if(!S.me){ toast(t("whoAreYou")); $("meInput").focus(); return; }
     addNote(rec,txt);
+    persist();
     ta.value="";
     renderLog(); renderTable();
     toast(t("noteAdded"));
@@ -1194,6 +1217,7 @@ function showAddForm(prefill){
     var firstNote=inputs[S.notesCol].value.trim();
     if(firstNote) addNote(rec,firstNote);
     S.records.push(rec);
+    persist();
     closeModal();
     $("q").value="";
     pushHistory(name,true);
@@ -1379,8 +1403,18 @@ $("langEn").addEventListener("click",function(){ lang="en"; applyLang(); });
 /* ================= boot ================= */
 var REGISTER = {"headers":["Позиция","Имейл адрес","Имена (БГ)","Имена (EN)","Канал","Източник (таб)","Статус","Бележки"],"rows":[["Международен шофьор с кат. С","ivan.primer@example.com","Иван Примеров","Ivan Primerov","Facebook","Social Media","Нов","[01.07.2026 · ВД] Звъннах, чака отговор."],["Международен шофьор с кат. С","","Мария Тестова","Maria Testova","Facebook","Social Media","Свързахме се",""],["Шофьори кат. С","georgi.demo@example.com","Георги Демов","Georgi Demov","","Drivers","Интервю","[02.07.2026 · МГ] Насрочено интервю за петък."],["Международен шофьор с кат. С + Е","elena.demo@example.com","Елена Иванова","Elena Ivanova","Other","Drivers","Одобрен",""],["Шофьори кат. С","","Николай Образцов","Nikolay Obraztsov","","Drivers","Отказан","[03.07.2026 · ВД] Няма ADR, отпада засега."]]};
 
-loadRows([REGISTER.headers].concat(REGISTER.rows),
-  "Глориър — Обединен списък кандидати", ",");
+var saved=loadPersisted();
+if(saved && saved.records && saved.records.length){
+  S.headers=saved.headers; S.records=saved.records; S.nameCols=saved.nameCols;
+  S.notesCol=saved.notesCol; S.statusCol=saved.statusCol;
+  S.delim=saved.delim||","; S.fileName=saved.fileName||"";
+  S.history=[]; S.sort={col:"",dir:1}; S.filter=""; S.facetVals={}; S.hidden={};
+  $("fpMeta").textContent=t("loadedFile")+S.fileName;
+  renderColChips(); renderVisChips(); renderFacets(); renderTable(); renderHistory();
+} else {
+  loadRows([REGISTER.headers].concat(REGISTER.rows),
+    "Глориър — Обединен списък кандидати", ",");
+}
 applyLang();
 setView("check");
 })();
